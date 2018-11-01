@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 import rospy
 from std_msgs.msg import String
-
-pub = None
+from std_msgs.msg import Float32
 
 def callback(data):
-    rospy.loginfo(rospy.get_caller_id() + 'Heard %s', data.data)
-    pub.publish(std_msgs.msg.String('I heard: {}'.format(data.data)))
+    publisher.publish(String('I heard: {}'.format(data.data)))
 
 def listener():
+    global publisher
     # init node
     rospy.init_node('assignment1_publisher_subscriber', anonymous=True)
     # create publisher
-    pub = rospy.Publisher('/assignment1_publisher_subscriber', std_msgs.String, queue_size = 10)
+    publisher = rospy.Publisher('/assignment1_publisher_subscriber', String, queue_size = 10)
     # subscribe with callback
-    rospy.Subscriber('/yaw', std_msgs.Float32, callback)
+    rospy.Subscriber('/yaw', Float32, callback)
 
     rospy.spin()
 
