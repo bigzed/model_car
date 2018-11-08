@@ -12,9 +12,10 @@ from std_msgs.msg import String
 # --- definitions ---
 epsilon = 0.05   # allowed inaccuracy for distance calculation
 speed_rpm = 200
-angle_left = 30
+# Calibrated steering angles
+angle_left = 50
 angle_straight = 90
-angle_right = 150
+angle_right = 170
 last_odom = None
 is_active = False
 
