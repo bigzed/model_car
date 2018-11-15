@@ -11,6 +11,7 @@
 \usepackage{listings}
 \usepackage{tikz}
 \usepackage{fancyhdr}
+\usepackage{gensymb}
 \usetikzlibrary{arrows,shapes,snakes,automata,backgrounds,petri,positioning}
 
 \hypersetup{
@@ -46,7 +47,115 @@
 \setlength{\parindent}{0em}
 \setlength{\parskip}{0.5em}
 
+\hypersetup{ urlcolor=blue }
+
 \begin{document}
   \section{Aufabe 1}
+    \href{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/simple_parking_maneuver/src/parking_maneuver.py}{Parking Maneuver unchanged} \\
+    \href{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/simple_drive_control/src/drive_control.py}{Drive Control with calibrated angles} \\
+    In drive\_control.py we calibrated the angles of the simple drive control
+    node from \\
+    15: angle\_left = 30 to angle\_left = 50 \\
+    17: angle\_right = 150 to angle\_right = 170 \\
+    for the parking maneuver to work properly.
+
+    \href{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/movie.mp4}{The video can also be found in our github}
   \section{Aufgabe 2}
+  $^{B}_{A} T = \begin{pmatrix}
+      cos 90\degree & - sin 90\degree & 0 & t_{x} \\
+        sin 90\degree & cos 90\degree & 0 & t_{y} \\
+        0 & 0 & 1 & t_{z} \\
+        0 & 0 & 0 & 1 \\
+    \end{pmatrix} =
+  \begin{pmatrix}
+        0 & -1 & 0 & -1 \\
+        1 & 0 & 0 & 4 \\
+        0 & 0 & 1 & 5 \\
+        0 & 0 & 0 & 1 \\
+    \end{pmatrix}$
+  \section{Aufgabe 3}
+    \begin{itemize}
+        \item
+            $\epsilon = \begin{pmatrix}
+                cos(\frac{-3\pi}{2})\\
+                0 * sin(\frac{-3\pi}{2})\\
+                0 * sin(\frac{-3\pi}{2})\\
+                1 * sin(\frac{-3\pi}{2})\\
+                \end{pmatrix} = 
+                \begin{pmatrix}
+                    cos(-270\degree)\\
+                0 * sin(-270\degree)\\
+                0 * sin(-270\degree)\\
+                1 * sin(-270\degree)\\
+                \end{pmatrix} = 
+                \begin{pmatrix}
+                0\\
+                0\\
+                0\\
+                -1\\
+                \end{pmatrix}$ \\
+            $R = 
+                \begin{bmatrix}
+                    1 - 2       & 2 * (0 - 0) & 2 * (0 + 0)\\
+                    2 * (0 + 0) & 1 - 0 - 2   & 2 * (0 - 0)\\
+                    2 * (0 - 0) & 2 * (0 + 0) & 1 - 0 - 0\\
+                \end{bmatrix} =
+                \begin{bmatrix}
+                    -1 &  0 & 0 \\
+                     0 & -1 & 0 \\
+                     0 &  0 & 1 \\
+                \end{bmatrix}$ \\
+            $R*v = 
+                \begin{bmatrix}
+                    -1 &  0 & 0 \\
+                     0 & -1 & 0 \\
+                     0 &  0 & 1 \\
+                \end{bmatrix} *
+                \begin{pmatrix}
+                    2 \\
+                    0 \\
+                    0 \\
+                \end{pmatrix} =
+                \begin{pmatrix}
+                    -2 \\
+                    0  \\
+                    0  \\
+                \end{pmatrix}$\\
+        \item
+            $\epsilon = \begin{pmatrix}
+                0,5\\
+                -0,5\\
+                -0,5\\
+                0,5\\
+                \end{pmatrix} \\
+            R = 
+                \begin{bmatrix}
+                    1 - 0,5 - 0,5 & 2 * (0,25 - 0,25) & 2 * (- 0,25 - 0,25)\\
+                    2 * (0,25 + 0,25) & 1 - 0,5 - 0,5   & 2 * (-0,25 + 0,25)\\
+                    2 * (-0,25 + 0,25) & 2 * (-0,25 - 0,25) & 1 - 0,5 - 0,5\\
+                \end{bmatrix} =
+                \begin{bmatrix}
+                    0 & 0 & -1 \\
+                    1 & 0 & 0 \\
+                    0 & -1 & 0 \\
+                \end{bmatrix}\\
+            X = \begin{pmatrix}
+                0\\
+                1\\
+                0\\
+            \end{pmatrix}
+            Y = \begin{pmatrix}
+                0\\
+                0\\
+                -1\\
+            \end{pmatrix}
+            Z = \begin{pmatrix}
+                -1\\
+                0\\
+                0\\
+            \end{pmatrix}\\
+            \epsilon_{0} = cos(\frac{\Theta}{2}) \rightarrow \Theta = 120\degree$
+    \end{itemize}
+  \section{Aufgabe 4}
+  Since z must be orthogonal to y and x the vector z = (0, 0, sqrt(0.5)).
 \end{document}
