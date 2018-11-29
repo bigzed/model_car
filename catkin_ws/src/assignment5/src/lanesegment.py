@@ -2,6 +2,7 @@ import roslib
 import sys
 import rospy
 import cv2
+import sklearn
 import numpy as np
 
 from std_msgs.msg import String
@@ -14,7 +15,7 @@ class LaneSegment:
         # Image publisher
         self.image_gray_pub = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
-        self.image_pub = rospy.Publisher("/image_processing/bin_img", Image, queue_size = 1)
+        self.ransac = rospy.Publisher("/image_processing/bin_ransac_lines", Image, queue_size = 1)
 
         # Image source
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.callback, queue_size = 1)
@@ -22,27 +23,12 @@ class LaneSegment:
         self.bridge = CvBridge()
 
     def callback(self, data):
+
+        # +++ Exercise 1 +++
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
             print(e)
-
-        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
-        # define range of white color in HSV
-        lower_white = np.array([180, 180, 180])
-        upper_white = np.array([255, 255, 255])
-        # threshold the HSV image to get only white colors
-        mask = cv2.inRange(hsv, lower_white, upper_white)
-        #bitwise and mask and original image
-        res = cv2.bitwise_and(cv_image, cv_image, mask= mask)
-        #res = cv2.cvtColor(res, cv2.COLOR_HSV2BGR)
-        try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(res, "8UC3"))
-        except CvBridgeError as e:
-            print(e)
-
-        #cv2.imshow('res', res)
-
 
         # Convert to white only
         gray_img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -60,59 +46,62 @@ class LaneSegment:
         except CvBridgeError as e:
             print(e)
         
-        left_image = black_img[320:639]
-        right_image = black_img[0:319]
+        # +++ Exercise 2 +++
 
-        lfoundtop = (0,0)
-        lfoundmid = (0,0)
-        lfoundbot = (0,0)
-        
-        rfoundtop = (0,0)
-        rfoundmid = (0,0)
-        rfoundbot = (0,0)
+        left_image = black_img[0:319]
+        right_image = black_img[320:639]
 
-        #left
+        points_left = ([][])*3
+        points_right = ([][])*3
+
+        # left
+        # search from top to bottom to find a starting white point
         for y in range(480):
             for x in range(320):
                 if left_image[x][y] == 255:
-                   lfoundtop[0]=x        
-                   lfoundtop[1]=y       
+                   points_left[0][0]=x        
+                   points_left[0][1]=y       
 
+        # search from bottom to top to find an ending white point
         for y in range(480):
             for x in range(320):
                 if left_image[x][480-y] == 255:
-                   lfoundbot[0]=x        
-                   lfoundbot[1]=y       
+                   points_left[1][0]=x        
+                   points_left[1][1]=y       
 
+        # search in the middle of both white points to find a corresponding white point
         for x in range(320):
-            if left_image[x][foundbot[1]-foundtop[1]] == 255:
-                lfoundmid[0]=x        
-                lfoundmid[1]=y       
+            if left_image[x][points_left[1][0]-points_left[2][0] == 255:
+               points_left[2][0]=x        
+               points_left[2][1]=y       
 
-        #right
+        # right
+        # analogous for the right pixels
         for y in range(480):
             for x in range(320):
                 if right_image[x][y] == 255:
-                   rfoundtop[0]=x        
-                   rfoundtop[1]=y       
+                   points_right[0][0]=x        
+                   points_right[0][1]=y       
 
         for y in range(480):
             for x in range(320):
                 if right_image[x][480-y] == 255:
-                   rfoundbot[0]=x        
-                   rfoundbot[1]=y       
+                   points_right[1][0]=x        
+                   points_right[1][1]=y       
 
         for x in range(320):
             if right_image[x][foundbot[1]-foundtop[1]] == 255:
-                rfoundmid[0]=x        
-                rfoundmid[1]=y
+               points_right[2][0]=x        
+               points_right[2][1]=y       
 
-        print(lfoundtop) 
-        print(lfoundmid) 
-        print(lfoundbot) 
-        print(rfoundtop) 
-        print(rfoundtop) 
-        print(rfoundtop) 
+
+        ransac[0] = sklearn.linear_model.RANSACRegressor(min_samples=3, max_trials=1)
+        ransac[1] = sklearn.linear_model.RANSACRegressor(min_samples=3, max_trials=1)
+
+        try:
+            self.image_black_pub.publish(ransac)
+        except CvBridgeError as e:
+            print(e)
 
 def main(args):
     rospy.init_node('lanesegment', anonymous =True)
