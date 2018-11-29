@@ -59,6 +59,60 @@ class LaneSegment:
             self.image_black_pub.publish(self.bridge.cv2_to_imgmsg(black_img, "mono8"))
         except CvBridgeError as e:
             print(e)
+        
+        left_image = black_img[320:639]
+        right_image = black_img[0:319]
+
+        lfoundtop = (0,0)
+        lfoundmid = (0,0)
+        lfoundbot = (0,0)
+        
+        rfoundtop = (0,0)
+        rfoundmid = (0,0)
+        rfoundbot = (0,0)
+
+        #left
+        for y in range(480):
+            for x in range(320):
+                if left_image[x][y] == 255:
+                   lfoundtop[0]=x        
+                   lfoundtop[1]=y       
+
+        for y in range(480):
+            for x in range(320):
+                if left_image[x][480-y] == 255:
+                   lfoundbot[0]=x        
+                   lfoundbot[1]=y       
+
+        for x in range(320):
+            if left_image[x][foundbot[1]-foundtop[1]] == 255:
+                lfoundmid[0]=x        
+                lfoundmid[1]=y       
+
+        #right
+        for y in range(480):
+            for x in range(320):
+                if right_image[x][y] == 255:
+                   rfoundtop[0]=x        
+                   rfoundtop[1]=y       
+
+        for y in range(480):
+            for x in range(320):
+                if right_image[x][480-y] == 255:
+                   rfoundbot[0]=x        
+                   rfoundbot[1]=y       
+
+        for x in range(320):
+            if right_image[x][foundbot[1]-foundtop[1]] == 255:
+                rfoundmid[0]=x        
+                rfoundmid[1]=y
+
+        print(lfoundtop) 
+        print(lfoundmid) 
+        print(lfoundbot) 
+        print(rfoundtop) 
+        print(rfoundtop) 
+        print(rfoundtop) 
 
 def main(args):
     rospy.init_node('lanesegment', anonymous =True)
