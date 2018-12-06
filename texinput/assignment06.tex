@@ -11,6 +11,7 @@
 \usepackage{listings}
 \usepackage{tikz}
 \usepackage{fancyhdr}
+\usepackage{gensymb}
 \usetikzlibrary{arrows,shapes,snakes,automata,backgrounds,petri,positioning}
 
 \hypersetup{
@@ -53,15 +54,21 @@
         Der Quellcode kann hier gefunden werden:
         \url{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/assignment6_steering_calibration/src/steering_calibration.py}.
       \item Ergebnisse:\\
-        \begin{tabular}{c|c}
-          Steering Angle & $\gamma$ als Radiant \\ \hline \hline
-          $0$ & $0.18915529253$\\
-          $30$ & $0.209852060712$\\
-          $60$ & $0.980816619634$\\
-          $90$ & $0.561273411245$\\
-          $120$ & $-0.543072958893$\\
-          $150$ & $-0.42415124885$\\
-          $180$ & $-0.566487117288$
+        Wie man an den werten der Tabelle erkennen kann, ist die Berechnung wahrscheinlich nicht
+        vollst"andig korrekt.
+
+        Die Werte sollten von Steering Angle $0\degree$ bis $90\degree$ von gr"o"ser bis ungef"ahr
+        $0$ gehen und f"ur $90\degree$ bis $180\degree$ sollten sie von ungef"ahr $0$ bis ungef"ahr
+        negativ von Steering Angle $0\degree$ reichen.\\\\
+        \begin{tabular}{c|c|c}
+          Steering Angle & $\gamma$ als Radiana & $\gamma$ als Degree \\ \hline \hline
+          $0$ & $0.18915529253$ & $10,83$\\
+          $30$ & $0.209852060712$ & $12,02$ \\
+          $60$ & $0.980816619634$ & $56,19$ \\
+          $90$ & $0.561273411245$ & $32,15$ \\
+          $120$ & $-0.543072958893$ & $-32,11$\\
+          $150$ & $-0.42415124885$ & $-24,30$\\
+          $180$ & $-0.566487117288$ & $-32,45$
         \end{tabular}
   \end{itemize}
 \end{document}
