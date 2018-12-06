@@ -1,0 +1,67 @@
+\documentclass[10pt,oneside,a4paper]{article}
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=1cm,includeheadfoot]{geometry}
+\usepackage{ngerman}
+\usepackage[utf8]{inputenc}
+% \usepackage{amsfonts,amssymb,amsmath,cancel,graphicx,textcomp}
+\usepackage{amsfonts,amssymb,amsmath,graphicx,textcomp}
+\usepackage{float}
+\usepackage{color,xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{fancyhdr}
+\usetikzlibrary{arrows,shapes,snakes,automata,backgrounds,petri,positioning}
+
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{crash override : \\Steve Dierker, Semjon Kerner, Artur Jeske}
+\fancyhead[C]{"Ubungsblatt 05}
+\fancyhead[R]{Seite \thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+
+% lstlisting mit Zeilennummerierung und grauen Kommentaren, Zeilenumbruch, etc. pp.
+\lstset{
+  numbers=left, numberstyle=\tiny, numbersep=5pt,
+  tabsize=2,
+  breaklines=true, breakindent=0pt, postbreak=\mbox{$\rightarrow\ \ $},
+  showstringspaces=false,
+  extendedchars=false,
+  basicstyle=\small\ttfamily,
+  commentstyle=\color{black!40},
+  stringstyle=\color{black!40!blue},
+  keywordstyle=\color{black!40!green}
+}
+
+% Komma Abstände bei Tausendern/Dezimalzahlen ans dt. anpassen
+\mathcode`,="013B
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+
+\begin{document}
+  \section{Steering Calibration}
+    \begin{itemize}
+      \item Steering Calibration Quellcode:\\
+        Der Quellcode kann hier gefunden werden:
+        \url{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/assignment6_steering_calibration/src/steering_calibration.py}.
+      \item Ergebnisse:\\
+        \begin{tabular}{c|c}
+          Steering Angle & $\gamma$ als Radiant \\ \hline \hline
+          $0$ & $0.18915529253$\\
+          $30$ & $0.209852060712$\\
+          $60$ & $0.980816619634$\\
+          $90$ & $0.561273411245$\\
+          $120$ & $-0.543072958893$\\
+          $150$ & $-0.42415124885$\\
+          $180$ & $-0.566487117288$
+        \end{tabular}
+  \end{itemize}
+\end{document}
