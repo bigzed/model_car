@@ -1,0 +1,61 @@
+\documentclass[10pt,oneside,a4paper]{article}
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=1cm,includeheadfoot]{geometry}
+\usepackage{ngerman}
+\usepackage[utf8]{inputenc}
+% \usepackage{amsfonts,amssymb,amsmath,cancel,graphicx,textcomp}
+\usepackage{amsfonts,amssymb,amsmath,graphicx,textcomp}
+\usepackage{float}
+\usepackage{color,xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{fancyhdr}
+\usepackage{gensymb}
+\usetikzlibrary{arrows,shapes,snakes,automata,backgrounds,petri,positioning}
+
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{crash override : \\Steve Dierker, Semjon Kerner, Artur Jeske}
+\fancyhead[C]{"Ubungsblatt 07}
+\fancyhead[R]{Seite \thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+
+% lstlisting mit Zeilennummerierung und grauen Kommentaren, Zeilenumbruch, etc. pp.
+\lstset{
+  numbers=left, numberstyle=\tiny, numbersep=5pt,
+  tabsize=2,
+  breaklines=true, breakindent=0pt, postbreak=\mbox{$\rightarrow\ \ $},
+  showstringspaces=false,
+  extendedchars=false,
+  basicstyle=\small\ttfamily,
+  commentstyle=\color{black!40},
+  stringstyle=\color{black!40!blue},
+  keywordstyle=\color{black!40!green}
+}
+
+% Komma Abstände bei Tausendern/Dezimalzahlen ans dt. anpassen
+\mathcode`,="013B
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+
+\begin{document}
+  \section{Line Detection}
+    \begin{itemize}
+      \item Line Detection Quellcode:\\
+        \url{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/assignment7_line_detection/src/line_detection.py}
+      \item Video des Autos mit Start auf der Linie: \\
+        \url{https://github.com/bigzed/model_car/texinput/videos/ex6_mid.mp4}
+      \item Video des Autos mit Start 20 cm neben der Linie: \\
+        \url{https://github.com/bigzed/model_car/texinput/videos/ex6_20cm.mp4}.
+      \item TODO Erklärungen? \\
+  \end{itemize}
+\end{document}
