@@ -14,6 +14,7 @@ from scipy import optimize
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int16, UInt8, UInt16
 from collections import deque
+from numpy.linalg import norm
 
 class CaptainSteer:
     def __init__(self):
@@ -47,7 +48,9 @@ class LineDetection:
             plt.ion()
             plt.show()
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, queue_size = 1)
-        self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
+        if self.plot:
+            self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
+            self.image_gray_pub  = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.error_pub = rospy.Publisher("/image_processing/error", Int16, queue_size = 1)
         self.bridge = CvBridge()
 
@@ -58,46 +61,52 @@ class LineDetection:
         except CvBridgeError as e:
             print(e)
 
-        img = np.flip(cv_image, 0)
-        #img = img[:350]
-        # Convert to grayscale
-        #gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        cv_image = cv_image[:350]
+        gray_img = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        if self.plot:
+            try:
+                self.image_gray_pub.publish(self.bridge.cv2_to_imgmsg(gray_img, "mono8"))
+            except CvBridgeError as e:
+                print(e)
 
         # Convert to B/W image
         bi_gray_max = 255
-        bi_gray_min = 250
-        ret, img = cv2.threshold(img, bi_gray_min, bi_gray_max, cv2.THRESH_BINARY)
-        try:
-            self.image_black_pub.publish(self.bridge.cv2_to_imgmsg(img, "mono8"))
-        except CvBridgeError as e:
-            print(e)
-
-        X = []
-        Y = []
-        for y in range(480):
-            for x in range(640):
-                if img[y, x] == 255:
-                    X.append([x])
-                    Y.append(y)
+        bi_gray_min = 220
+        ret, img = cv2.threshold(gray_img, bi_gray_min, bi_gray_max, cv2.THRESH_BINARY)
+        if self.plot:
+            try:
+                self.image_black_pub.publish(self.bridge.cv2_to_imgmsg(img, "mono8"))
+            except CvBridgeError as e:
+                print(e)
 
         # RANSAC
+        coords = np.where(img == 255)
         ransac = linear_model.RANSACRegressor()
-        ransac.fit(X, Y)
+        ransac.fit(coords[1].reshape(-1, 1), coords[0])
         line_x = np.arange(0, 640)[:, np.newaxis]
         line_y = ransac.predict(line_x)
 
-        self.update_plot(X, Y, line_x, line_y)
+        # Distance to image center
+        center_p = np.array([320, 240])
+        line_p1 = np.array([10, line_y[10]])
+        line_p2 = np.array([200, line_y[200]])
+        distance = np.cross(line_p2-line_p1, line_p1-center_p)/norm(line_p2-line_p1)
 
-        #self.error_pub.publish(Int16(320 - x_coord))
+        if self.plot:
+            print("Error: %s" % (distance))
+            self.update_plot(coords[1], coords[0], line_x, line_y)
+
+        self.error_pub.publish(Int16(distance))
 
     def update_plot(self, X, Y, line_x, line_y):
         x = np.linspace(0, 640, 2)
         plt.clf()
         plt.axis('equal')
-        plt.ylim(0,480)
+        plt.ylim(480,0)
         plt.xlim(0,640)
         plt.plot(X,Y,'ro')
         plt.plot(line_x,line_y,'blue')
+        plt.plot([320], [240], 'go')
         plt.pause(0.001)
 
 def main(args):
