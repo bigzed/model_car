@@ -6,6 +6,7 @@ import numpy as np
 import roslib
 import sys
 import cv2
+import time
 
 from sklearn import linear_model
 from cv_bridge import CvBridge, CvBridgeError
@@ -16,8 +17,38 @@ from std_msgs.msg import Int16, UInt8, UInt16
 from collections import deque
 from numpy.linalg import norm
 
+class VelocityController:
+    def __init__(self, debug):
+        self.tick_sub = rospy.Subscriber("/ticks", UInt8, self.callback)
+        # Wheel circumference in meter
+        self.circumference = 0.208
+        self.debug = debug
+        self.last_tick = None
+        self.first_tick = None
+
+    def callback(self, msg):
+        # Early exit if no tick
+        if msg.data == 0:
+            return
+        timestamp = time.time_ns()
+
+        # If first tick, save timestamp exit.
+        if self.last_tick == None:
+            self.last_tick = timestamp
+            self.first_tick = timestamp
+            return
+
+        speed = self.circumference / (self.last_tick * 10**(-9))
+        self.last_tick = timestamp
+
+        if self.debug:
+            print("ns since last tick: %s" % self.last_tick)
+            print("Estimated speed: %s m/s" % (speed))
+            print("Estimated distance: %s m" % (speed * (timestampe-self.first_tick * 10**(-9))))
+
+
 class CaptainSteer:
-    def __init__(self):
+    def __init__(self, debug):
         self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
         self.error_queue = deque([], 10)
         self.delta = 5
@@ -25,6 +56,7 @@ class CaptainSteer:
         self.p = 90
         self.k = -3
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
+        self.debug = debug
 
     def error_callback(self, msg):
         data = msg.data
@@ -33,11 +65,12 @@ class CaptainSteer:
 
         # average over all items
         mean_error = np.mean(list(self.error_queue))
-        print("Mean: %s of %s" % (mean_error, self.error_queue))
+        if self.debug:
+            print("Mean: %s of %s" % (mean_error, self.error_queue))
 
         steering_angle = (mean_error / self.k) + self.p
-        #if (abs(self.old) - abs(steering_angle)) > 1:
-        print("Steering Angle: %s %s" % (steering_angle, self.old))
+        if self.debug:
+            print("Steering Angle: %s %s" % (steering_angle, self.old))
         self.old = steering_angle
         self.pub_steering.publish(UInt8(steering_angle))
 
@@ -111,8 +144,9 @@ class LineDetection:
 
 def main(args):
     rospy.init_node("oval_circuit")
-    cs = CaptainSteer()
-    ld = LineDetection(True)
+    cs = CaptainSteer(False)
+    ld = LineDetection(False)
+    vc = VelocityController(True)
     pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
     pub_speed.publish(Int16(150))
 
