@@ -11,16 +11,16 @@ import time
 from sklearn import linear_model
 from cv_bridge import CvBridge, CvBridgeError
 from collections import namedtuple
-from scipy import optimize
 from sensor_msgs.msg import Image
-from std_msgs.msg import Int16, UInt8, UInt16
+from std_msgs.msg import Int16, UInt8, UInt16, Float64
 from collections import deque
 from numpy.linalg import norm
 
 class VelocityController:
     def __init__(self, debug):
+        print("INIT")
         self.tick_sub = rospy.Subscriber("/ticks", UInt8, self.callback)
-        self.speed_sub = rospy.Subscriber("/image_processing/speed", Int16, self.speed_callback)
+        self.speed_sub = rospy.Subscriber("/image_processing/speed", Float64, self.speed_callback)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         # Distance per tick in meter
         self.dist_per_tick = 0.005859375
@@ -30,16 +30,21 @@ class VelocityController:
         self.desired_speed = None
         self.integral = 0
         self.previous_error = 0
+        self.speeds = []
+        self.times = []
         # PID Parameters
-        self.kp = 2
-        self.ki = 2
-        self.kd = 2
+        self.kp = 0.8
+        self.ki = 0.0001
+        self.kd = 0.1
+        self.pub_speed.publish(Int16(250))
+        print("DONE")
 
     def callback(self, msg):
         # Early exit if no tick
         if msg.data == 0:
             return
         timestamp = time.clock()
+        print("TICK CALLBACK")
 
         # If first tick, save timestamp exit.
         if self.last_tick == None:
@@ -58,17 +63,28 @@ class VelocityController:
         self.previous_error = error
         self.pub_speed.publish(Int16(output))
         self.last_tick = timestamp
+        self.speeds.append(speed)
+        self.times.append(timestamp - self.first_tick)
 
         if self.debug:
             print("Estimated speed: %s m/s" % (speed))
             print("Estimated distance: %s m" % (speed * (timestampe-self.first_tick)))
             print("DT: %s Error: %s Integral: %s Derivative: %s Output: %s" % (dt, error, self.integral, derivative, output))
+            print("\nSpeeds: %s\n\n" % self.speeds)
+            print("\nTimes: %s\n\n" % self.times)
 
     def speed_callback(self, msg):
+        print("CALLBACK")
         self.desired_speed = msg.data
         self.current_rpm = 200
         self.pub_speed.publish(Int16(200))
 
+    def update_plot(self, X, Y):
+        plt.clf()
+        plt.ylim(0, 120)
+        plt.xlim(0,4)
+        plt.plot(X,Y,'ro')
+        plt.pause(0.001)
 
 
 class CaptainSteer:
@@ -109,7 +125,7 @@ class LineDetection:
             self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
             self.image_gray_pub  = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.error_pub = rospy.Publisher("/image_processing/error", Int16, queue_size = 1)
-        self.speed_pub = rospy.Publisher("/image_processing/speed", Int16, queue_size = 1)
+        self.speed_pub = rospy.Publisher("/image_processing/speed", Float64, queue_size = 1)
         self.bridge = CvBridge()
 
 
@@ -169,10 +185,10 @@ class LineDetection:
 
 def main(args):
     rospy.init_node("oval_circuit")
-    cs = CaptainSteer(False)
-    ld = LineDetection(False)
+    #cs = CaptainSteer(False)
+    #ld = LineDetection(False)
     vc = VelocityController(True)
-    
+
     rospy.spin()
 
 if __name__ == '__main__':
