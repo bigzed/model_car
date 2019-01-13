@@ -25,7 +25,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{crash override : \\Steve Dierker, Semjon Kerner, Artur Jeske}
-\fancyhead[C]{"Ubungsblatt 07}
+\fancyhead[C]{"Ubungsblatt 08}
 \fancyhead[R]{Seite \thepage}
 \renewcommand{\headrulewidth}{0.5pt}
 
@@ -52,21 +52,43 @@
     \url{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/assignment8_oval_circuit/src}
     \section{Velocity Controller}
         Since we could not find documentation that gave us reasonable
-        information on how often a tick appeared, we measured how many ticks
-        happend within a time, with a specific rpm and from our error we
-        were able to calculat the tick.
-        That gave us a tick every X seconds. \\
+        information on how often a tick appeared, we had to measure the rate of
+        ticks happening within a given distance. For that we let the model car drive
+        and stopped it at 150 cm, which gave us 256 ticks, leaving us with
+        around 170 ticks per meter.\\
         We used 2 different velocitys:
         \begin{itemize}
-            \item 3 km/s (Y ticks / s) - low
-            \item 6 km/s (Z ticks / s) - high
+            \item 0,8 m/s (136 ticks/s) - "{}low"{}
+            \item 1,2 m/s (204 ticks/s) - "{}high"{}
         \end{itemize}
 
-        We used those two speeds to measure and plot the rpm: \\
-        \includegraphics[scale=0.7]{pictures/velocity_plot.png}
+        We wanted to use both "{}low"{} and "{}high"{} speed to measure and plot
+        the rpm, yet we were not able to implement a valid PID controller in the
+        time we assumed for this exercise.
+        The best controller we were able to write oscillated
+		unreasonable strong and did not converge to the desired RPM.
+        Since once again all batteries were drained we were unable to proceed
+        working - in this case a rosbag would not have been of much help.
+        Also we could neither plot the graphs on the car because matplotlib
+        was not installed and the ROS wifi has no connection to the internet,
+        nor could we execute the programm on our machine, since the wifi connection
+        was to error-prone to accumulate good values.
+%        \includegraphics[scale=0.7]{pictures/velocity_plot.png}
     \section{Controll the car around an oval circuit}
-        For this exercise we used ransac on the left and the right half of
-        the screen. Steering happend in dependece to the average slope of the
-        lines. We adapated the velocity to be high when steering is withing a
-        threshold $V ^\circ$, otherwise to be low.
+        For this exercise we wanted to use ransac on both the left and the right
+        half of the screen, to find two graphs for both the left and right markings.
+        Steering would have happend in dependece to the average slope of the graphs.\\
+        Ransac would have needed the scikit-learn library, which again was
+        neither installed nor installable.\\
+        In correspondance with other groups we also learned, that ransac is
+        probably a poor choice, often detecting graphs wrongly.
+        Therefore we prepared to use our approach from the last exercise.
+        In that, we search for the first white pixel close to the center
+        and let the car steer towards it, while smoothing steering with an
+        accumulating shift register.
+        
+        We would have adapted the velocity to be "{}high"{} when steering is within a
+        threshold close to straight steering, otherwise to be "{}low"{}.
+        Sadly we didn't reach this point of the exercise due to huge administrative
+        overhead with the car, the batteries, the wifi and lacking documentation.
 \end{document}
