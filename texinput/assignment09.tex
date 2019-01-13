@@ -53,20 +53,62 @@
     \begin{figure}[h]
       \centering
       \includegraphics[scale=0.5]{pictures/map.png}
-      \caption{Karte mit eingezeichneten Me"spunkten.}
+      \caption{Karte mit eingezeichneten Messpunkten.}
     \end{figure}
     \begin{itemize}
-      \item{Linie links:} \( P_{1L} = (95.5, 197); P_{2L} = (95.5, 403) \) \\
-        \( x = 95,5 \)
-      \item{Linie rechts:} \( P_{1R} = (335.5, 197); P_{2R} = (335.5, 403) \) \\
-        \( x = 335,5 \)
-      \item{Kreis oben:} \( P_{CO} = (215, 196), r = 120 \) \\
-        \( (x - 215)^2 + (y - 196)^2 = 120^2 \)
-      \item{Kreis unten:} \( P_{CU} = (215, 404), r = 120 \) \\
-        \( (x - 215)^2 + (y - 404)^2 = 120^2 \)
+      \item{Linie links:} \( P_{1L} = (94, 197); P_{2L} = (94, 403) \) \\
+        \( x = 94 \)
+      \item{Linie rechts:} \( P_{1R} = (336, 197); P_{2R} = (336, 403) \) \\
+        \( x = 336 \)
+      \item{Kreis oben:} \( P_{CO} = (215, 196); r = 121 \) \\
+        \( (x - 215)^2 + (y - 196)^2 = 121^2 \)
+      \item{Kreis unten:} \( P_{CU} = (215, 404); r = 121 \) \\
+        \( (x - 215)^2 + (y - 404)^2 = 121^2 \)
     \end{itemize}
 
   \section{Closest point on trajectory}
+    Als erstes haben wir die gegebenen Koordinaten von Metern in Pixel umgerechnet, wobei \( 1m
+    \equiv 100px \equiv 100cm \).
+
+    Nun testen wir ob der angefragte Punkt einer der Mittelpunkte der Kreise ist. Sollte dies der
+    Fall sein geben wir den Mittelpunkt auf dem halben Kreisbogen als Ergebnis zur"uck.
+
+    Als n"achsten unterscheiden wir die 4 Quadranten der Karte: oberer Kreis, unterer Kreis, linke
+    Linie, rechte Linie. Abh"angig vom Quadranten verwenden folgende Berechnung:
+    \begin{itemize}
+      \item{oberer Kreis:}
+        \begin{eqnarray*}
+          V & = & P - P_{CO} \\
+          P_{closest} & = & \frac{P_{CO} + V}{|V| * r}
+        \end{eqnarray*}
+      \item{unterer Kreis:}
+        \begin{eqnarray*}
+          V & = & P - P_{CU} \\
+          P_{closest} & = & \frac{P_{CU} + V}{|V| * r}
+        \end{eqnarray*}
+      \item{linke Linie:}
+        \begin{eqnarray*}
+          P_{closest} = (94, P.y)
+        \end{eqnarray*}
+      \item{rechte Linie:}
+        \begin{eqnarray*}
+          P_{closest} = (336, P.y)
+        \end{eqnarray*}
+    \end{itemize}
+    Hierbei ist \( |V| \) die L"ange des Vektors.
+
+    \emph{Ergebnisse in \( px(cm) \):}
+    \begin{itemize}
+      \item{\((0,0)\)}: \( (125.58025288, 114.48246309) \)
+      \item{\((200,400)\)}: \( (94, 400) \)
+      \item{\((100,300)\)}: \( (94, 300) \)
+      \item{\((200,215)\)}: \( (94, 215) \)
+    \end{itemize}
+    \begin{figure}[h]
+      \centering
+      \includegraphics[scale=0.5]{pictures/closest_point_graph.png}
+      \caption{Karte mit eingezeichneten n"achsten Punkten.}
+    \end{figure}
 
   \section{Ceilin camera GPS}
 \end{document}
