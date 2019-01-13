@@ -49,7 +49,11 @@ class VelocityController:
     def run(self):
         while not rospy.is_shutdown():
             # One read on self.total_ticks always guarentees to be atomic.
-            curr_ticks = self.total_ticks - self.last_ticks
+            curr_ticks = self.read_ticks()
+            # if total_ticks clips, reset last_ticks
+            if curr_ticks < 0:
+                self.last_ticks = 0
+                curr_ticks = self.read_ticks()
             self.last_ticks += curr_ticks
 
             # Calculate speed estimate in m/s
@@ -67,6 +71,9 @@ class VelocityController:
 
             # Sleep for time_slice
             rospy.sleep(self.time_slice)
+
+        def read_ticks(self):
+            return self.total_ticks - self.last_ticks
 
 class CaptainSteer:
     def __init__(self, debug):
