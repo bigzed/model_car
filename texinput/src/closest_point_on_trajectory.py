@@ -32,15 +32,20 @@ def main(args):
     img = imread('../pictures/map.png')
     plt.ion()
     plt.imshow(img)
-    #ax = plt.gcf().gca()
-    #ax.add_artist(plt.Circle((215, 196), 121, color='y'))
-    #ax.add_artist(plt.Circle((215, 404), 121, color='y'))
-
-    for point in [[0, 0], [200, 400], [100, 300], [200, 215]]:
+    '''
+    ax = plt.gcf().gca()
+    ax.add_artist(plt.Circle((215, 196), 121, color='y'))
+    ax.add_artist(plt.Circle((215, 404), 121, color='y'))
+    #'''
+    for point in [[0, 0], [400, 200], [300, 100], [240, 420]]:
         closest_p = closest_point(point[0], point[1])
         print(f'Point ({point[0]}, {point[1]}) -> {closest_p}')
         print(f'IMG-COLOR: {img[point[0], point[1]]}')
+        '''
         plt.plot(closest_p[0], closest_p[1], marker='x', color='g')
+        '''
+        plt.plot([point[0], closest_p[0]], [point[1], closest_p[1]], 'gx-')
+        #'''
 
     plt.show(block=True)
 
