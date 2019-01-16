@@ -9,11 +9,13 @@ import cv2
 import time
 
 from sklearn import linear_model
+from scipy.misc import imread
 from cv_bridge import CvBridge, CvBridgeError
 from collections import namedtuple
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int16, UInt8, UInt16, Float64
 from collections import deque
+from nav_msgs.msg import Odometry
 from numpy.linalg import norm
 
 class VelocityController:
@@ -205,18 +207,70 @@ class LineDetection:
         plt.plot([320], [300], 'go')
         plt.pause(0.001)
 
+class Localization:
+    def __init__(self):
+        self.local_sub = rospy.Subscriber("/localization/odom/9", Odometry, self.localization_callback, queue_size = 1)
+        self.positions = []
+
+    def localization_callback(self, msg):
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+
+        self.positions.append([y * 100, x * 100])
+
+    def closest_point(self, x, y):
+        """Returns closest point on trajectory."""
+        # Top or bottom center of circle
+        if x == 215 and y == 196:
+            return np.array([215, 76])
+        if x == 215 and y == 404:
+            return np.array([215, 524])
+
+        # Top half circle:
+        if y <= 196:
+            return self.closest_point_on_circle(np.array([x, y]), np.array([215, 196]), 121)
+        # Bottom half circle:
+        elif y >= 404:
+            return self.closest_point_on_circle(np.array([x, y]), np.array([215, 404]), 121)
+        # Left line
+        elif x <= 215:
+            return np.array([94, y])
+        # Right line
+        else:
+            return np.array([336, y])
+
+    def closest_point_on_circle(self, p, c, r):
+        v = p - c
+        return c + v / np.linalg.norm(v) * r
+
+    def plot(self):
+        # Error
+        np_positions = np.array(self.positions)
+        cl_points = np.array(map(lambda x: self.closest_point(x[0], x[1]), np_positions))
+
+        dists = map(lambda x: np.absolute(np.linalg.norm(np.array([x[0], x[1]]) - self.closest_point(x[0], x[1]))), np_positions)
+        print("mean absolute Error: %s" % (np.mean(dists)))
+        print("mean squared Error: %s" % (np.mean(np.square(dists))))
+
+        img = imread('texinput/pictures/map.png')
+        plt.ion()
+        plt.imshow(img)
+        x, y = np_positions.T
+        plt.plot(x, y, 'g')
+        plt.show(block=True)
+
+
 def main(args):
     rospy.init_node("oval_circuit")
-    cs = CaptainSteer(True)
-    ld = LineDetection(True)
-    speed_pub = rospy.Publisher("/speed", Int16, queue_size=100, latch=True)
-    speed_pub.publish(Int16(400))
-
+    cs = CaptainSteer(False)
+    ld = LineDetection(False)
+    localization = Localization()
     #vc = VelocityController(False)
     #vc.run()
 
     rospy.spin()
-    speed_pub.publish(Int16(0))
+
+    localization.plot()
 
 
 if __name__ == '__main__':
