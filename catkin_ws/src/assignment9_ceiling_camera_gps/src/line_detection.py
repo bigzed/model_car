@@ -86,7 +86,15 @@ class CaptainSteer:
         self.p = 90
         self.k = -3
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
+        self.sub_steering = rospy.Subscriber("/steering", UInt8, self.get_steering)
+        self.pub_speed = rospy.Publisher("/speed", Int16, queue_size=100, latch=True)
         self.debug = debug
+
+    def get_steering(self, msg):
+        if msg.data < 50 or msg.data > 130:
+            self.pub_speed.publish(Int16(400))
+        else:
+            self.pub_speed.publish(Int16(1000))
 
     def error_callback(self, msg):
         data = msg.data
