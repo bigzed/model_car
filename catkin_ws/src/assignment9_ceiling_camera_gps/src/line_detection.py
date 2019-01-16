@@ -134,7 +134,7 @@ class LineDetection:
 
         # Convert to B/W image
         bi_gray_max = 255
-        bi_gray_min = 220
+        bi_gray_min = 200
         ret, img = cv2.threshold(gray_img, bi_gray_min, bi_gray_max, cv2.THRESH_BINARY)
         if self.plot:
             try:
