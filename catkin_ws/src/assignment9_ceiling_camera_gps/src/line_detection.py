@@ -43,6 +43,9 @@ class VelocityController:
         if msg.data == 1:
             self.total_ticks += 1
 
+    def read_ticks(self):
+        return self.total_ticks - self.last_ticks
+
     def get_speed(self, data):
         self.desired_speed = msg.data
 
@@ -72,13 +75,10 @@ class VelocityController:
             # Sleep for time_slice
             rospy.sleep(self.time_slice)
 
-        def read_ticks(self):
-            return self.total_ticks - self.last_ticks
-
 class CaptainSteer:
     def __init__(self, debug):
         self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
-        self.error_queue = deque([], 10)
+        self.error_queue = deque([], 1)
         self.delta = 5
         self.old = 90
         self.p = 90
@@ -115,6 +115,7 @@ class LineDetection:
             self.image_gray_pub  = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.error_pub = rospy.Publisher("/image_processing/error", Int16, queue_size = 1)
         self.speed_pub = rospy.Publisher("/image_processing/speed", Float64, queue_size = 1)
+        self.last_dist = 320
         self.bridge = CvBridge()
 
     def image_callback(self, data):
@@ -151,18 +152,22 @@ class LineDetection:
     def naive_distance_to_center(self, img):
         # Get all white points in row 240
         coords = np.where(img == 255)
-        dist = 320
+        dist = -1
         for x in range(320):
-            if img[240, 320 + x] == 255:
+            if x < 140 and img[300, 320 + x] == 255:
                 dist = 320 + x
                 break
-            if img[240, 320 - x] == 255:
+            if img[300, 320 - x] == 255:
                 dist = 320 - x
                 break
 
+        if dist == -1:
+            dist = self.last_dist
+        self.last_dist = dist
+
         if self.plot:
             print("Error: %s" % (320 - dist))
-            self.update_plot(coords[1], coords[0], [dist], [240])
+            self.update_plot(coords[1], coords[0], [dist], [300])
 
         return 320 - dist
 
@@ -197,15 +202,22 @@ class LineDetection:
             plt.plot(line_x, line_y,'bo')
         else:
             plt.plot(line_x, line_y,'b')
-        plt.plot([320], [240], 'go')
+        plt.plot([320], [300], 'go')
         plt.pause(0.001)
 
 def main(args):
     rospy.init_node("oval_circuit")
-    cs = CaptainSteer(False)
+    cs = CaptainSteer(True)
     ld = LineDetection(True)
-    vc = VelocityController(False)
-    vc.run()
+    speed_pub = rospy.Publisher("/speed", Int16, queue_size=100, latch=True)
+    speed_pub.publish(Int16(400))
+
+    #vc = VelocityController(False)
+    #vc.run()
+
+    rospy.spin()
+    speed_pub.publish(Int16(0))
+
 
 if __name__ == '__main__':
     main(sys.argv)
