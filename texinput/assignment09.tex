@@ -26,7 +26,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{crash override : \\Steve Dierker, Semjon Kerner, Artur Jeske}
-\fancyhead[C]{"Ubungsblatt 07}
+\fancyhead[C]{"Ubungsblatt 09}
 \fancyhead[R]{Seite \thepage}
 \renewcommand{\headrulewidth}{0.5pt}
 
@@ -56,13 +56,13 @@
       \caption{Karte mit eingezeichneten Messpunkten.}
     \end{figure}
     \begin{itemize}
-      \item{Linie links:} \( P_{1L} = (94, 197); P_{2L} = (94, 403) \) \\
+      \item{Linie links:} \( P_{1L} = (94 | 197); P_{2L} = (94 | 403) \) \\
         \( x = 94 \)
-      \item{Linie rechts:} \( P_{1R} = (336, 197); P_{2R} = (336, 403) \) \\
+      \item{Linie rechts:} \( P_{1R} = (336 | 197); P_{2R} = (336 | 403) \) \\
         \( x = 336 \)
-      \item{Kreis oben:} \( P_{CO} = (215, 196); r = 121 \) \\
+      \item{Kreis oben:} \( P_{CO} = (215 | 196); r = 121 \) \\
         \( (x - 215)^2 + (y - 196)^2 = 121^2 \)
-      \item{Kreis unten:} \( P_{CU} = (215, 404); r = 121 \) \\
+      \item{Kreis unten:} \( P_{CU} = (215 | 404); r = 121 \) \\
         \( (x - 215)^2 + (y - 404)^2 = 121^2 \)
     \end{itemize}
 
@@ -88,11 +88,11 @@
         \end{eqnarray*}
       \item{linke Linie:}
         \begin{eqnarray*}
-          P_{closest} = (94, P.y)
+          P_{closest} = (94 | P.y)
         \end{eqnarray*}
       \item{rechte Linie:}
         \begin{eqnarray*}
-          P_{closest} = (336, P.y)
+          P_{closest} = (336 | P.y)
         \end{eqnarray*}
     \end{itemize}
     Hierbei ist \( |V| \) die L"ange des Vektors. Quellcode:
@@ -100,10 +100,10 @@
 
     \emph{Ergebnisse in \( px(cm) \):}
     \begin{itemize}
-      \item{\((0,0)\)}: \( (125.58025288, 114.48246309) \)
-      \item{\((200,400)\)}: \( (94, 400) \)
-      \item{\((100,300)\)}: \( (94, 300) \)
-      \item{\((200,215)\)}: \( (94, 215) \)
+      \item{\((0 | 0)\)}: \( (125.58025288 | 114.48246309) \)
+      \item{\((200 | 400)\)}: \( (94 | 400) \)
+      \item{\((100 | 300)\)}: \( (94 | 300) \)
+      \item{\((200 | 215)\)}: \( (94 | 215) \)
     \end{itemize}
     \begin{figure}[h]
       \centering
@@ -113,7 +113,8 @@
     \newpage
 
   \section{Ceiling camera GPS}
-    Quellcode; \url{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/assignment9_ceiling_camera_gps/src/line_detection.py}
+	Video: \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/circle_drive.MP4} \\
+    Quellcode: \url{https://github.com/bigzed/model_car/blob/version-4.0/catkin_ws/src/assignment9_ceiling_camera_gps/src/line_detection.py}
     \begin{itemize}
       \item mean absolute error: \( 6.30822263109cm \)
       \item mean squared error: \( 75.0087521354cm^{2} \)
@@ -122,7 +123,7 @@
     \begin{figure}[h]
       \centering
       \includegraphics[scale=0.9]{pictures/map_with_localization.png}
-      \caption{Lokalisierungs Daten in Gr"un}
+      \caption{Lokalisierungsdaten in Gr"un}
     \end{figure}
 
 \end{document}
