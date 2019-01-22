@@ -37,9 +37,9 @@ class VelocityController:
         # Sleep time in loop
         self.time_slice = 0.1
         # PID parameters
-        self.kp = 0.6
-        self.ki = 0.1
-        self.kd = 0.1
+        self.kp = 0.0
+        self.ki = 0.0
+        self.kd = 0.0
 
     def get_ticks(self, msg):
         if msg.data == 1:
@@ -113,9 +113,8 @@ class CaptainSteer:
         self.pub_steering.publish(UInt8(steering_angle))
 
 class LineDetection:
-    def __init__(self, plot, ransac = False):
+    def __init__(self, plot):
         self.plot = plot
-        self.ransac = ransac
         if self.plot:
             plt.ion()
             plt.show()
@@ -152,28 +151,53 @@ class LineDetection:
             except CvBridgeError as e:
                 print(e)
 
-        if self.ransac:
-            distance = self.ransac_distance_to_center(img)
-        else:
-            distance = self.naive_distance_to_center(img)
+        #distance = self.ransac_distance_to_center(img)
+        #distance = self.naive_distance_to_center(img)
+        distance = self.naive_distance_average(img)
 
         self.error_pub.publish(Int16(distance))
 
     def naive_distance_to_center(self, img):
         # Get all white points in row 240
         coords = np.where(img == 255)
-        dist = -1
+        dist_change = False
         for x in range(320):
             if x < 140 and img[300, 320 + x] == 255:
                 dist = 320 + x
+                dist_change=True
                 break
             if img[300, 320 - x] == 255:
                 dist = 320 - x
+                dist_change=True
                 break
 
-        if dist == -1:
+        if dist_change == False:
             dist = self.last_dist
         self.last_dist = dist
+
+        if self.plot:
+            print("Error: %s" % (320 - dist))
+            self.update_plot(coords[1], coords[0], [dist], [300])
+
+        return 320 - dist
+
+    def naive_distance_average(self, img):
+        # Average over line 300
+        avg = 0
+        avg_cnt = 0
+        for y in range(640)):
+            if img[300,y] == 255:
+                avg += y
+                avg_cnt += 1
+        if avg_cnt > 0:
+            avg /= avg_cnt
+            self.last_dist = dist
+            if avg < 320:
+                dist = 320 - avg
+            else:
+                dist = avg - 320
+        else:
+            dist = self.last_dist
 
         if self.plot:
             print("Error: %s" % (320 - dist))
