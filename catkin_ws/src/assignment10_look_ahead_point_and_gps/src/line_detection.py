@@ -24,18 +24,18 @@ class VelocityController:
         # Subscribers
         self.tick_sub = rospy.Subscriber("/ticks", UInt8, self.get_ticks)
         self.speed_sub = rospy.Subscriber("/desired_speed", Float64, self.get_speed)
+        self.speed_sub = rospy.Subscriber("/time_diff", Float64, self.adapt_speed)
+        
         self.speed_pub = rospy.Publisher("/speed", Int16, queue_size=100, latch=True)
         self.curr_speed_pub = rospy.Publisher("/curr_speed", Float64, queue_size=1)
+        self.td_pub = rospy.Publisher("/time_diff", Float64, queue_size=1)
 
-        self.total_ticks = 0
-        self.last_ticks = 0
+        self.ticks = 0
         self.previous_error = 0
         self.integral = 0
         self.desired_speed = 0
-        # Distance in meter traveled per tick
-        self.dist_per_tick = 0.005859375
-        # Sleep time in loop
-        self.time_slice = 0.1
+        self.last_ts = 0
+        
         # PID parameters
         self.kp = 0.0
         self.ki = 0.0
@@ -43,43 +43,35 @@ class VelocityController:
 
     def get_ticks(self, msg):
         if msg.data == 1:
-            self.total_ticks += 1
-
-    def read_ticks(self):
-        return self.total_ticks - self.last_ticks
+            self.ticks += 1
+            if self.ticks == 16:
+                self.td_pub.publish(time.time() - self.last_ts)
+                self.ticks = 0
+            if self.ticks < 1 or self.ticks > 16:
+                self.last_ts = time.time()
 
     def get_speed(self, msg):
         self.desired_speed = msg.data
 
-    def run(self):
-        while not rospy.is_shutdown():
-            # One read on self.total_ticks always guarentees to be atomic.
-            curr_ticks = self.read_ticks()
-            # if total_ticks clips, reset last_ticks
-            if curr_ticks < 0:
-                self.last_ticks = 0
-                curr_ticks = self.read_ticks()
-            self.last_ticks += curr_ticks
+    def adapt_speed(self, msg):
+        # Calculate speed estimate in m/s
+        curr_speed = 0.1 / (10 * msg.data) 
+        self.curr_speed_pub.publish(Float64(curr_speed))
 
-            # Calculate speed estimate in m/s
-            curr_speed = (curr_ticks * self.dist_per_tick) / self.time_slice
-            self.curr_speed_pub.publish(Float64(curr_speed))
+        # PID Controller
+        error = self.desired_speed - curr_speed
+        self.integral = self.integral + error * msg.data
+        derivative = (error - self.previous_error) / msg.data
 
-            # PID Controller
-            error = self.desired_speed - curr_speed
-            self.integral = self.integral + error * self.time_slice
-            derivative = (error - self.previous_error) / self.time_slice
-
-            # PID Controller operates in m/s and is scaled to ticks/s
-            speed_in_rpm = (self.kp * error + self.ki * self.integral + self.kd * derivative) * 170
-            self.speed_pub.publish(Int16(speed_in_rpm))
-
-            # Sleep for time_slice
-            rospy.sleep(self.time_slice)
-
+        # PID Controller operates in m/s and is scaled to ticks/s
+        speed_in_rpm = (self.kp * error + self.ki * self.integral + self.kd * derivative) * 170
+        self.speed_pub.publish(Int16(speed_in_rpm))
+            
 class CaptainSteer:
     def __init__(self, debug):
-        self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
+        # TODO error should be calculated from the odometry:
+        self.error_sub = rospy.Subscriber("/localization/error", Int16, self.error_callback)
+        #self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
         self.error_queue = deque([], 1)
         self.delta = 5
         self.old = 90
@@ -123,7 +115,6 @@ class LineDetection:
             self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
             self.image_gray_pub  = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.error_pub = rospy.Publisher("/image_processing/error", Int16, queue_size = 1)
-        self.speed_pub = rospy.Publisher("/image_processing/speed", Float64, queue_size = 1)
         self.last_dist = 320
         self.bridge = CvBridge()
 
@@ -152,8 +143,8 @@ class LineDetection:
                 print(e)
 
         #distance = self.ransac_distance_to_center(img)
-        #distance = self.naive_distance_to_center(img)
-        distance = self.naive_distance_average(img)
+        distance = self.naive_distance_to_center(img)
+        #distance = self.naive_distance_average(img)
 
         self.error_pub.publish(Int16(distance))
 
@@ -185,19 +176,15 @@ class LineDetection:
         # Average over line 300
         avg = 0
         avg_cnt = 0
-        for y in range(640):
+        for y in range(0,640):
             if img[300,y] == 255:
                 avg += y
                 avg_cnt += 1
         if avg_cnt > 0:
             dist = avg / avg_cnt
-            """if avg < 320:
-                dist = 320 - avg
-            else:
-                dist = avg - 320"""
             self.last_dist = dist
         else:
-            dist = self.last_dist
+            dist = int((320 * 0.2) + ((self.last_dist - 320) * 0.8))
 
         if self.plot:
             print("Error: %s" % (320 - dist))
@@ -242,6 +229,7 @@ class LineDetection:
 class Localization:
     def __init__(self):
         self.local_sub = rospy.Subscriber("/localization/odom/9", Odometry, self.localization_callback, queue_size = 1)
+        self.error_pub = rospy.Publisher("/localization/error", Int16, queue_size = 1)
         self.positions = []
 
     def localization_callback(self, msg):
@@ -252,18 +240,19 @@ class Localization:
 
     def closest_point(self, point, laneID, distance):
         x,y = point[0], point[1]
-        laneID -= 1
-        """Returns closest point on trajectory."""
-        # Top or bottom center of circle
-        if x == 215 and y == 196:
-            return np.array([215, 76])
-        if x == 215 and y == 404:
-            return np.array([215, 524])
+        laneID -= 1 # fix weird numbering
 
         if laneID = 0: #INNERLANE
             laned = 16
         elif laneID = 1: #OUTERLANE
             laned = 48
+            
+        """Returns closest point on trajectory."""
+        # Top or bottom center of circle
+        if x == 215 and y == 196:
+            return np.array([215, 76 + laned])
+        if x == 215 and y == 404:
+            return np.array([215, 524 + laned])
 
         # Top half circle:
         if y <= 196:
@@ -277,7 +266,9 @@ class Localization:
         # Right line
         else:
             return np.array([336 + laned, y])
-
+            
+        #TODO DERIVE ERROR FROM CLOSEST POINT
+            
     def closest_point_on_circle(self, p, c, r):
         v = p - c
         return c + v / np.linalg.norm(v) * r
