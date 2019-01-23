@@ -21,66 +21,69 @@ from numpy.linalg import norm
 class VelocityController:
     def __init__(self, debug):
         self.debug = debug
+        self.speed_pub = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
+        self.curr_speed_pub = rospy.Publisher("/curr_speed", Float64, queue_size=1)
+        self.td_pub = rospy.Publisher("/time_diff", Float64, queue_size=1)
         # Subscribers
         self.tick_sub = rospy.Subscriber("/ticks", UInt8, self.get_ticks)
         self.speed_sub = rospy.Subscriber("/desired_speed", Float64, self.get_speed)
         self.speed_sub = rospy.Subscriber("/time_diff", Float64, self.adapt_speed)
-        
-        self.speed_pub = rospy.Publisher("/speed", Int16, queue_size=100, latch=True)
-        self.curr_speed_pub = rospy.Publisher("/curr_speed", Float64, queue_size=1)
-        self.td_pub = rospy.Publisher("/time_diff", Float64, queue_size=1)
-
-        self.ticks = 0
+        self.shutdown = 0
+        rospy.on_shutdown(self.shutdownhandler)
         self.previous_error = 0
         self.integral = 0
         self.desired_speed = 0
         self.last_ts = 0
-        
+        self.tickq = deque([0]*10)
         # PID parameters
-        self.kp = 0.0
+        self.kp = 1.2
         self.ki = 0.0
-        self.kd = 0.0
+        self.kd = 0.11
+        self.td_pub.publish(Float64(1))
+
+    def shutdownhandler(self):
+        self.shutdown = .2
+        self.speed_pub.publish(Int16(0))
 
     def get_ticks(self, msg):
-        if msg.data == 1:
-            self.ticks += 1
-            if self.ticks == 16:
-                self.td_pub.publish(time.time() - self.last_ts)
-                self.ticks = 0
-            if self.ticks < 1 or self.ticks > 16:
-                self.last_ts = time.time()
+        self.tickq.popleft()
+        self.tickq.append(msg.data)
+        tickavg = np.mean(list(self.tickq)) * 0.058
+        self.td_pub.publish(tickavg)
 
     def get_speed(self, msg):
         self.desired_speed = msg.data
 
     def adapt_speed(self, msg):
         # Calculate speed estimate in m/s
-        curr_speed = 0.1 / (10 * msg.data) 
-        self.curr_speed_pub.publish(Float64(curr_speed))
+        self.curr_speed_pub.publish(Float64(msg.data))
 
         # PID Controller
-        error = self.desired_speed - curr_speed
-        self.integral = self.integral + error * msg.data
-        derivative = (error - self.previous_error) / msg.data
+        error = self.desired_speed - msg.data
+        self.integral = self.integral + error * 0.1
+        derivative = (error - self.previous_error) / 0.1
 
         # PID Controller operates in m/s and is scaled to ticks/s
         speed_in_rpm = (self.kp * error + self.ki * self.integral + self.kd * derivative) * 170
-        self.speed_pub.publish(Int16(speed_in_rpm))
-            
+        if self.shutdown == 0:
+            self.speed_pub.publish(Int16(speed_in_rpm))
+
 class CaptainSteer:
     def __init__(self, debug):
-        # TODO error should be calculated from the odometry:
-        self.error_sub = rospy.Subscriber("/localization/error", Int16, self.error_callback)
-        #self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
         self.error_queue = deque([], 1)
         self.delta = 5
         self.old = 90
         self.p = 90
         self.k = -3
+        self.debug = debug
+
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.sub_steering = rospy.Subscriber("/steering", UInt8, self.get_steering)
         self.pub_speed = rospy.Publisher("/desired_speed", Float64, queue_size=100, latch=True)
-        self.debug = debug
+
+        # TODO error should be calculated from the odometry:
+        #self.error_sub = rospy.Subscriber("/localization/error", Int16, self.error_callback)
+        self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
 
     def get_steering(self, msg):
         if msg.data < 50 or msg.data > 130:
@@ -110,11 +113,12 @@ class LineDetection:
         if self.plot:
             plt.ion()
             plt.show()
-        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, queue_size = 1)
         if self.plot:
             self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
             self.image_gray_pub  = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.error_pub = rospy.Publisher("/image_processing/error", Int16, queue_size = 1)
+
+        self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, queue_size = 1)
         self.last_dist = 320
         self.bridge = CvBridge()
 
@@ -228,8 +232,8 @@ class LineDetection:
 
 class Localization:
     def __init__(self):
-        self.local_sub = rospy.Subscriber("/localization/odom/9", Odometry, self.localization_callback, queue_size = 1)
         self.error_pub = rospy.Publisher("/localization/error", Int16, queue_size = 1)
+        self.local_sub = rospy.Subscriber("/localization/odom/9", Odometry, self.localization_callback, queue_size = 1)
         self.positions = []
 
     def localization_callback(self, msg):
@@ -242,11 +246,11 @@ class Localization:
         x,y = point[0], point[1]
         laneID -= 1 # fix weird numbering
 
-        if laneID = 0: #INNERLANE
+        if laneID == 0: #INNERLANE
             laned = 16
-        elif laneID = 1: #OUTERLANE
+        elif laneID == 1: #OUTERLANE
             laned = 48
-            
+
         """Returns closest point on trajectory."""
         # Top or bottom center of circle
         if x == 215 and y == 196:
@@ -266,9 +270,9 @@ class Localization:
         # Right line
         else:
             return np.array([336 + laned, y])
-            
+
         #TODO DERIVE ERROR FROM CLOSEST POINT
-            
+
     def closest_point_on_circle(self, p, c, r):
         v = p - c
         return c + v / np.linalg.norm(v) * r
@@ -290,13 +294,13 @@ class Localization:
         plt.show(block=True)
 
 
+
 def main(args):
     rospy.init_node("oval_circuit")
     cs = CaptainSteer(False)
     ld = LineDetection(False)
     localization = Localization()
-    #vc = VelocityController(False)
-    #vc.run()
+    vc = VelocityController(False)
 
     rospy.spin()
 
