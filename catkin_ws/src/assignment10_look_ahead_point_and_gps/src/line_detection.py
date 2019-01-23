@@ -7,6 +7,7 @@ import roslib
 import sys
 import cv2
 import time
+import tf
 
 from sklearn import linear_model
 from scipy.misc import imread
@@ -20,14 +21,10 @@ from numpy.linalg import norm
 
 class VelocityController:
     def __init__(self, debug):
-        self.debug = debug
         self.speed_pub = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         self.curr_speed_pub = rospy.Publisher("/curr_speed", Float64, queue_size=1)
         self.td_pub = rospy.Publisher("/time_diff", Float64, queue_size=1)
-        # Subscribers
-        self.tick_sub = rospy.Subscriber("/ticks", UInt8, self.get_ticks)
-        self.speed_sub = rospy.Subscriber("/desired_speed", Float64, self.get_speed)
-        self.speed_sub = rospy.Subscriber("/time_diff", Float64, self.adapt_speed)
+        self.debug = debug
         self.shutdown = 0
         rospy.on_shutdown(self.shutdownhandler)
         self.previous_error = 0
@@ -39,7 +36,11 @@ class VelocityController:
         self.kp = 1.2
         self.ki = 0.0
         self.kd = 0.11
-        self.td_pub.publish(Float64(1))
+
+        # Subscribers
+        self.tick_sub = rospy.Subscriber("/ticks", UInt8, self.get_ticks)
+        self.speed_sub = rospy.Subscriber("/desired_speed", Float64, self.get_speed)
+        self.speed_sub = rospy.Subscriber("/time_diff", Float64, self.adapt_speed)
 
     def shutdownhandler(self):
         self.shutdown = .2
@@ -81,9 +82,9 @@ class CaptainSteer:
         self.sub_steering = rospy.Subscriber("/steering", UInt8, self.get_steering)
         self.pub_speed = rospy.Publisher("/desired_speed", Float64, queue_size=100, latch=True)
 
-        # TODO error should be calculated from the odometry:
-        #self.error_sub = rospy.Subscriber("/localization/error", Int16, self.error_callback)
-        self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
+        #TODO error should be calculated from the pose:
+        self.error_sub = rospy.Subscriber("/localization/error", Int16, self.error_callback)
+        #self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
 
     def get_steering(self, msg):
         if msg.data < 50 or msg.data > 130:
@@ -113,14 +114,16 @@ class LineDetection:
         if self.plot:
             plt.ion()
             plt.show()
+        self.last_dist = 320
+        self.bridge = CvBridge()
+
         if self.plot:
             self.image_black_pub = rospy.Publisher("/image_processing/bin_black_img", Image, queue_size = 1)
             self.image_gray_pub  = rospy.Publisher("/image_processing/bin_gray_img", Image, queue_size = 1)
         self.error_pub = rospy.Publisher("/image_processing/error", Int16, queue_size = 1)
+        self.error_pub.publish(Int16(120))
 
         self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, queue_size = 1)
-        self.last_dist = 320
-        self.bridge = CvBridge()
 
     def image_callback(self, data):
         try:
@@ -233,22 +236,37 @@ class LineDetection:
 class Localization:
     def __init__(self):
         self.error_pub = rospy.Publisher("/localization/error", Int16, queue_size = 1)
-        self.local_sub = rospy.Subscriber("/localization/odom/9", Odometry, self.localization_callback, queue_size = 1)
+        self.local_sub = rospy.Subscriber("/localization/odom/12", Odometry, self.localization_callback, queue_size = 1)
         self.positions = []
 
     def localization_callback(self, msg):
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
+        quaternion = (msg.pose.pose.orientation.x,
+                      msg.pose.pose.orientation.y,
+                      msg.pose.pose.orientation.z,
+                      msg.pose.pose.orientation.w)
+        euler = tf.transformations.euler_from_quaternion(quaternion)
+        yaw = euler[2]
+        carangle = (yaw / np.pi) * 180 + 180
+        u = [0]*2
+        u[0],u[1] = np.cos(carangle) + x, np.sin(carangle) + y
 
         self.positions.append([y * 100, x * 100])
+        distpoint = self.closest_point([x,y], 1, 20)
+        v = distpoint - [x,y]
+        errorangle = np.arccos((v[0]*u[0] + v[1]*u[1]) / (np.linalg.norm(v) * np.linalg.norm(u)))
+        print(distpoint, [x,y])
+        #print(distpoint)
+
+        #self.error_pub.publish(Int16(distance))
 
     def closest_point(self, point, laneID, distance):
         x,y = point[0], point[1]
-        laneID -= 1 # fix weird numbering
 
-        if laneID == 0: #INNERLANE
+        if laneID == 1: #INNERLANE
             laned = 16
-        elif laneID == 1: #OUTERLANE
+        elif laneID == 2: #OUTERLANE
             laned = 48
 
         """Returns closest point on trajectory."""
@@ -260,22 +278,34 @@ class Localization:
 
         # Top half circle:
         if y <= 196:
-            return self.closest_point_on_circle(np.array([x, y]), np.array([215, 196]), 121 + laned)
+            return self.dist_on_circle(np.array([x, y]), np.array([215, 196]), 121 + laned, distance)
         # Bottom half circle:
         elif y >= 404:
-            return self.closest_point_on_circle(np.array([x, y]), np.array([215, 404]), 121 + laned)
+            return self.dist_on_circle(np.array([x, y]), np.array([215, 404]), 121 + laned, distance)
         # Left line
         elif x <= 215:
-            return np.array([94 - laned, y])
+            if y + distance >= 404:
+                return self.closest_point_on_circle(np.array([x, y - distance]), np.array([215, 196]), 121 + laned)
+            return np.array([94 - laned, y + distance])
         # Right line
         else:
-            return np.array([336 + laned, y])
-
-        #TODO DERIVE ERROR FROM CLOSEST POINT
+            if y - distance >= 196:
+                return self.closest_point_on_circle(np.array([x, y - distance]), np.array([215, 404]), 121 + laned)
+            return np.array([336 + laned, y - distance])
 
     def closest_point_on_circle(self, p, c, r):
         v = p - c
         return c + v / np.linalg.norm(v) * r
+
+    def dist_on_circle(self, p, c, r, dist):
+        v = p - c
+        distpoint = c + (v * r / np.linalg.norm(v))
+        U = 2 * np.pi * r
+        distanceangle = 360 * (dist / U)
+        c, s = np.cos(distanceangle), np.sin(distanceangle)
+        distpoint[0] = distpoint[0]*c + distpoint[1]*(-s)
+        distpoint[1] = distpoint[0]*s + distpoint[1]*(c)
+        return distpoint
 
     def plot(self):
         # Error
@@ -298,7 +328,7 @@ class Localization:
 def main(args):
     rospy.init_node("oval_circuit")
     cs = CaptainSteer(False)
-    ld = LineDetection(False)
+    #ld = LineDetection(False)
     localization = Localization()
     vc = VelocityController(False)
 
