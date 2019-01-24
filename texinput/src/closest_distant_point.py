@@ -98,7 +98,7 @@ def main(args):
     ax.add_artist(plt.Circle((215, 404), 121 + 48, color='y'))
     #'''
     
-    for point in [([100, 100], 2, 20), ([300, 200], 1, 20), ([20, 426], 1, 20), ([330,440], 1, 20)]:
+    for point in [([100, 100], 2, 20), ([300, 200], 1, 50)]:
         closest_p,cp = closest_point(point[0], point[1], point[2])
         print(f'Point ({point[0][0]}, {point[0][1]}) -> {closest_p}')
         '''
