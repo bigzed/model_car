@@ -22,14 +22,10 @@ from os.path import expanduser
 
 class ClosestPointWithPrediction:
     def __init__(self):
-        home = expanduser("~")
         self.img_path = '/git/model_car/texinput/pictures/map.png'
-        self.img_path = home + self.img_path
+        self.img_path = expanduser("~") + self.img_path
 
-        # input values here
-        self.carPoint = np.array([300, 200])
-        self.LANEID = 1
-        self.DISTANCE = 50
+	self.cpToCar = np.array([0,0])
         
     def getClosestPoint(self, point, laneID,  distance):
         x, y = point[0], point[1]
@@ -68,51 +64,144 @@ class ClosestPointWithPrediction:
         v = p - c
         return c + v / np.linalg.norm(v) * r
 
-    def dist_on_circle(self, p, c, r, dist):
-        v = p - c
-        distpoint = c + (v * r / np.linalg.norm(v))
-        U = 2 * np.pi * r
-        distanceangle = 360 * (dist / U) 
-        #print(distanceangle)
+    def dist_on_circle(self, carPoint, circlePoint, r, distance):
+	# vector from car to circle origin
+        vcarToCircle = carPoint - circlePoint
+	print('vcarToCircle: ', vcarToCircle)
 
-        ## c2 = np.cos(distanceangle)
-        ## s2 = np.sin(distanceangle)
-        ## distpoint[0] = distpoint[0]*c + distpoint[1]*(-s)
-        ## distpoint[1] = distpoint[0]*s + distpoint[1]*(c)
+	# calculate closest point from car
+        distpoint = circlePoint + (vcarToCircle * r / np.linalg.norm(vcarToCircle))
+	self.cpToCar[:] = distpoint
 
-        circleOrigin = c
-        car = p
-        radius = r
+	# calculate the circuit of the circle        
+	circuit = 2 * np.pi * r
+	# calculate the desired distance in degrees
+        distanceangle = 360 * (distance / circuit) 
+	print('distanceangle: ', distanceangle)
 
         """ Parameterdarstellung der Koordinaten: https://de.wikipedia.org/wiki/Kreis#Parameterdarstellung """
         # if car is on top right corner
-        if car[0] > 215: # and car[0] < distpoint[0]:
-            distpoint[0] = c[0] + (r * np.cos(distanceangle * np.pi/180.0))
-            distpoint[1] = c[1] - (r * np.sin(distanceangle * np.pi/180.0))
+        if carPoint[0] > 215 and carPoint[1] < 196:
+		# TODO experimental
+		# the car would drive to bottom right instead of top left so we go backwards from the circle
+		if carPoint[1] < (196 - (196/2)) and carPoint[0] > (215 + (215/2)):
+			newangle = 90 - (90 * (distance / circuit))
+			print('newangle: ', newangle)
+			distanceangle = newangle
+        	distpoint[0] = circlePoint[0] + (r * np.cos(distanceangle * np.pi/180.0))
+        	distpoint[1] = circlePoint[1] - (r * np.sin(distanceangle * np.pi/180.0))
 
-        # TODO if car is on top left corner , reduntant ???
-        # TODO if car is on bottom right corner
-        # TODO if car is on bottom left corner
-        return distpoint
+        # if car is on top left corner
+        if carPoint[0] < 215 and carPoint[1] < 196:
+        	distpoint[0] = circlePoint[0] - (r * np.cos(distanceangle * np.pi/360.0))
+        	distpoint[1] = circlePoint[1] - (r * np.sin(distanceangle * np.pi/360.0))        
 
-    def plot(self):
+	# if car is on bottom right corner
+	if carPoint[0] > 215 and carPoint[1] > 415:
+        	distpoint[0] = circlePoint[0] + (r * np.cos(distanceangle * (np.pi)/360.0))
+        	distpoint[1] = circlePoint[1] + (r * np.sin(distanceangle * (np.pi)/360.0))		
+	
+	# if car is on bottom left corner
+	if carPoint[0] < 215 and carPoint[1] > 415:
+        	distpoint[0] = circlePoint[0] - (r * np.cos(distanceangle * (np.pi)/180.0))
+        	distpoint[1] = circlePoint[1] + (r * np.sin(distanceangle * (np.pi)/180.0))
+
+	return distpoint
+
+    def plot(self, point, distance, laneID):
         img = imread(self.img_path)
         plt.imshow(img)
 
+        self.carPoint = point
+        self.LANEID = laneID
+        self.DISTANCE = distance
+
         # plot car YELLOW
         plt.plot(self.carPoint[0], self.carPoint[1], 'y+')
-        print('Car point:', self.carPoint)
-
+        
         #plot point ahead MAGENTA
         closestPoint = self.getClosestPoint(self.carPoint, int(self.LANEID), int(self.DISTANCE))
         plt.plot(int(closestPoint[0]), int(closestPoint[1]), 'm+')
+
+	# plot closest point to car GREEN
+	plt.plot(self.cpToCar[0], self.cpToCar[1], 'g+')
+	
+	print('Car point:', self.carPoint)
+	print('closestPointToCar:' , self.cpToCar)
         print('Prediction:', closestPoint)
         
         plt.show(block=True)
 
 def main(args):
-    cpd = ClosestPointWithPrediction()
-    cpd.plot()
+    # task 1.1
+    # p = np.array([300, 200])
+    # d = 50 
+    # l = 1
+    # cpd = ClosestPointWithPrediction()
+    # cpd.plot(p, d, l)
+    
+    # task 1.2
+    # p = np.array([100, 100])
+    # d = 20
+    # l = 2
+    # cpd2 = ClosestPointWithPrediction()
+    # cpd2.plot(p, d, l)
+
+    # bottom right, outer lane, closest to turn from south to north
+    p = np.array([250, 590])
+    d = 70
+    l = 2
+    cpd3 = ClosestPointWithPrediction()
+    cpd3.plot(p, d, l)
+
+    # bottom right, closest to circle origin
+    p = np.array([250, 450])
+    d = 70
+    l = 2
+    cpd4 = ClosestPointWithPrediction()
+    cpd4.plot(p, d, l)
+
+    # bottom right, farest from circle origin
+    p = np.array([400, 550])
+    d = 70
+    l = 2
+    cpd5 = ClosestPointWithPrediction()
+    cpd5.plot(p, d, l)
+
+    # bottom right, outer lane, closest y to straight line y
+    p = np.array([410, 440])
+    d = 20
+    l = 2
+    cpd6 = ClosestPointWithPrediction()
+    cpd6.plot(p, d, l)
+
+    # bottom right, inner lane, closest y to straight line y
+    p = np.array([370, 440])
+    d = 20
+    l = 2
+    cpd7 = ClosestPointWithPrediction()
+    cpd7.plot(p, d, l)
+
+    # right lane, inner lane
+    p = np.array([370, 340])
+    d = 20
+    l = 2
+    cpd8 = ClosestPointWithPrediction()
+    cpd8.plot(p, d, l)
+
+    # top right
+    p = np.array([410, 190])
+    d = 20
+    l = 2
+    cpd9 = ClosestPointWithPrediction()
+    cpd9.plot(p, d, l)  
+
+    # top right
+    p = np.array([410, 50])
+    d = 20
+    l = 2
+    cpd10 = ClosestPointWithPrediction()
+    cpd10.plot(p, d, l) 	
 
 if __name__ == '__main__':
     main(sys.argv)
