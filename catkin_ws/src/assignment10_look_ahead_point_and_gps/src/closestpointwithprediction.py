@@ -24,7 +24,7 @@ class ClosestPointWithPrediction:
     def __init__(self):
         self.img_path = '/git/model_car/texinput/pictures/map.png'
         self.img_path = expanduser("~") + self.img_path
-
+        
 	self.cpToCar = np.array([0,0])
         
     def getClosestPoint(self, point, laneID,  distance):
@@ -134,18 +134,18 @@ class ClosestPointWithPrediction:
 
 def main(args):
     # task 1.1
-    # p = np.array([300, 200])
-    # d = 50 
-    # l = 1
-    # cpd = ClosestPointWithPrediction()
-    # cpd.plot(p, d, l)
+    p = np.array([300, 200])
+    d = 50 
+    l = 1
+    cpd = ClosestPointWithPrediction()
+    cpd.plot(p, d, l)
     
     # task 1.2
-    # p = np.array([100, 100])
-    # d = 20
-    # l = 2
-    # cpd2 = ClosestPointWithPrediction()
-    # cpd2.plot(p, d, l)
+    p = np.array([100, 100])
+    d = 20
+    l = 2
+    cpd2 = ClosestPointWithPrediction()
+    cpd2.plot(p, d, l)
 
     # bottom right, outer lane, closest to turn from south to north
     p = np.array([250, 590])
