@@ -15,7 +15,7 @@ from scipy.misc import imread
 from cv_bridge import CvBridge, CvBridgeError
 from collections import namedtuple
 from sensor_msgs.msg import Image, LaserScan, PointCloud2
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, Point
 from std_msgs.msg import Int16, UInt8, UInt16, Float64
 from laser_geometry import LaserProjection
 from collections import deque
@@ -24,10 +24,12 @@ from numpy.linalg import norm
 from tf.transformations import *
 
 class TFBroadcaster:
-    def __init__(self):
-        self.local_sub = rospy.Subscriber("/localization/odom/3", Odometry, self.get_odom, queue_size=1)
+    def __init__(self, car_id):
+        """Subscribe to odometry for car_id"""
+        self.local_sub = rospy.Subscriber("/localization/odom/" + str(car_id), Odometry, self.get_odom, queue_size=1)
 
     def get_odom(self, msg):
+        """For each package send new transformation"""
         br = tf.TransformBroadcaster()
         q = quaternion_from_euler(0, 0, np.pi)
         q_odom = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
@@ -37,8 +39,8 @@ class TFBroadcaster:
                 msg.header.stamp, 'laser', 'map')
 
 class LazerHawk:
-    def __init__(self, debug):
-        self.debug = debug
+    def __init__(self):
+        """Subscribe to LIDAR"""
         # Get Lidar
         self.lidar_sub = rospy.Subscriber("/scan", LaserScan, self.lidar_callback)
         # Pub Pointcloud
@@ -46,6 +48,7 @@ class LazerHawk:
         self.lp = LaserProjection()
 
     def lidar_callback(self, msg):
+        """Subscribe to LIDAR and publish point_cloud"""
         point_cloud = self.lp.projectLaser(msg)
         self.point_cloud_pub.publish(point_cloud)
 
@@ -264,52 +267,93 @@ class LineDetection:
         plt.pause(0.001)
 
 class Localization:
-    def __init__(self):
+    def __init__(self, car_id, debug = False):
         self.error_pub = rospy.Publisher("/localization/error", Int16, queue_size=1)
-        self.local_sub = rospy.Subscriber("/localization/odom/3", Odometry, self.localization_callback, queue_size=1)
+        self.speed_pub = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
+        self.local_sub = rospy.Subscriber("/localization/odom/" + str(car_id), Odometry, self.localization_callback, queue_size=1)
         self.point_cloud_sub = rospy.Subscriber("/localization/point_cloud", PointCloud2, self.get_point_cloud, queue_size=1)
         self.positions = []
-        self.obstacles = []
         self.point_cloud = None
         self.tf = tf.TransformListener()
+        self.debug = debug
+        self.lane_id = 1
 
     def get_point_cloud(self, msg):
+        """Save current LIDAR PointCloud in Car coordinates"""
         self.point_cloud = msg
 
+    def lane_is_free(self, obstacles, lane_id):
+        for p in obstacles:
+            point = np.array(p)
+            if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 16:
+                return False
+
+        return True
+
+    def get_lane(self, car_x, car_y):
+        """Returns LaneID based on obstacles on the road."""
+
+        """Transform and filter for obstacles in 1.5m distance"""
+        obstacles = []
+        for p in pc2.read_points(self.point_cloud):
+            ps = PointStamped(self.point_cloud.header, Point(p[0], p[1], p[2]))
+            new_ps = self.tf.transformPoint('map', ps)
+            """Our coordinates are in CM and switched because of the image plotting"""
+            if abs(np.linalg.norm(np.array([car_x, car_y]) - np.array([new_ps.point.y * 100, new_ps.point.x * 100]))) < 150:
+                obstacles.append([new_ps.point.y * 100, new_ps.point.x * 100])
+
+        """Plot detected obstacles"""
+        if self.debug:
+            self.obstacles_x, self.obstacles_y = np.array(obstacles).T
+
+        """Check if obstacle is on either lane"""
+        if self.lane_is_free(obstacles, self.lane_id):
+            """STAY"""
+        elif self.lane_is_free(obstacles, (self.lane_id + 1) % 2):
+            """SWITCH"""
+            self.lane_id = (self.lane_id + 1) % 2
+        else:
+            """STOP"""
+            self.speed_pub.publish(Int16(0))
+
+        return self.lane_id
+
     def localization_callback(self, msg):
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
+        """Return if we have no data yet"""
+        if not self.point_cloud:
+            return
+        if not self.tf.canTransform('map', self.point_cloud.header.frame_id, self.point_cloud.header.stamp):
+            return
+
+        """Odometry coordinates are in M ours are in CM and switched because of the image plotting"""
+        self.car_x = msg.pose.pose.position.y * 100
+        self.car_y = msg.pose.pose.position.x * 100
+
+        """Get lane_id based on obstacles"""
+        self.lane_id = self.get_lane(self.car_x, self.car_y)
+
+        """Get next point on trajectory use to determine steering error"""
         quaternion = (msg.pose.pose.orientation.x,
                       msg.pose.pose.orientation.y,
                       msg.pose.pose.orientation.z,
                       msg.pose.pose.orientation.w)
-        euler = tf.transformations.euler_from_quaternion(quaternion)
-        yaw = euler[2]
-        carangle = (yaw / np.pi) * 180 + 180
-        u = [0]*2
-        u[0],u[1] = np.cos(carangle) + x, np.sin(carangle) + y
+        yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
+        carangle = np.degrees(yaw) # transform to degrees and shift from -180/180 to 0/360
+        self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 10
+        car = self.front_vec + np.array([self.car_x, self.car_y])
+        #print(car, yaw)
 
-        # Car
-        self.positions.append([y * 100, x * 100])
-        # Obstacles
-        if self.point_cloud and self.tf.canTransform('map', self.point_cloud.header.frame_id, self.point_cloud.header.stamp):
-            point_generator = pc2.read_points(self.point_cloud)
-            for point in point_generator:
-                ps = PointStamped()
-                ps.header = self.point_cloud.header
-                ps.point.x = point[0]
-                ps.point.y = point[1]
-                ps.point.z = point[2]
-                new_ps = self.tf.transformPoint('map', ps)
-                if abs(np.linalg.norm(np.array([y, x]) - np.array([new_ps.point.y, new_ps.point.x]))) < 1.5:
-                    self.obstacles.append([y + new_ps.point.y * 100, x + new_ps.point.x * 100])
+        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)
+        """ Why distpoint[-1]?"""
+        self.target = np.linalg.norm(self.distpoint[-1]) - np.array([self.car_x, self.car_y])
 
-        distpoint = self.closest_point([x,y], 1, 20)
-        v = distpoint - [x,y]
-        errorangle = np.arccos((v[0]*u[0] + v[1]*u[1]) / (np.linalg.norm(v) * np.linalg.norm(u)))
-        #print(distpoint)
+        errorangle = np.degrees(np.arccos(np.dot(self.target, car) / (np.linalg.norm(self.target) * np.linalg.norm(car))))
+        error = errorangle * 2
+        #print("distpoint[-1], [x,y], car, target, carangle, errorangle, error")
+        #print(carangle, errorangle, error)
 
-        #self.error_pub.publish(Int16(distance))
+        self.plot()
+        self.error_pub.publish(Int16(error))
 
     def closest_point(self, point, laneID, distance):
         x,y = point[0], point[1]
@@ -358,33 +402,29 @@ class Localization:
         return distpoint
 
     def plot(self):
-        # Error
-        np_positions = np.array(self.positions)
-        np_obstacles = np.array(self.obstacles)
-
         img = imread('texinput/pictures/map.png')
         plt.ion()
+        plt.clf()
         plt.imshow(img)
-        x, y = np_positions.T
-        plt.plot(x, y, 'g')
-        x, y = np_obstacles.T
-        plt.plot(x, y, 'y.')
-        plt.show(block=True)
-
-
+        plt.plot(self.car_x, self.car_y, 'gx')
+        plt.plot(self.obstacles_x, self.obstacles_y, 'y.')
+        plt.plot(self.distpoint[0], self.distpoint[1], 'bx')
+        plt.plot(self.target[0], self.target[1], 'rx')
+        plt.axes().arrow(self.car_x, self.car_y, self.front_vec[0], self.front_vec[1], head_width=4, head_length=6, color='w')
+        plt.show()
+        plt.pause(0.0001)
 
 def main(args):
     rospy.init_node("oval_circuit")
+    car_id  = 3
     #cs = CaptainSteer(False)
-    tf = TFBroadcaster()
-    lh = LazerHawk(True)
+    tf = TFBroadcaster(car_id)
+    lh = LazerHawk()
     #ld = LineDetection(False)
-    localization = Localization()
+    localization = Localization(car_id, True)
     #vc = VelocityController(False)
 
     rospy.spin()
-
-    localization.plot()
 
 if __name__ == '__main__':
     main(sys.argv)
