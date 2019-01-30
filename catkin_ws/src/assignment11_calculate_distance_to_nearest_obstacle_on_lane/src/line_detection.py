@@ -341,19 +341,13 @@ class Localization:
         carangle = np.degrees(yaw) # transform to degrees and shift from -180/180 to 0/360
         self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 10
         car = self.front_vec + np.array([self.car_x, self.car_y])
-        #print(car, yaw)
 
         self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)
-        """ Why distpoint[-1]?"""
-        self.target = np.linalg.norm(self.distpoint[-1]) - np.array([self.car_x, self.car_y])
-
-        errorangle = np.degrees(np.arccos(np.dot(self.target, car) / (np.linalg.norm(self.target) * np.linalg.norm(car))))
-        error = errorangle * 2
-        #print("distpoint[-1], [x,y], car, target, carangle, errorangle, error")
-        #print(carangle, errorangle, error)
+        self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
+        self.angle = np.degrees(np.arccos(np.dot(self.target_vec, self.front_vec) / (np.linalg.norm(self.target_vec) * np.linalg.norm(self.front_vec))))
 
         self.plot()
-        self.error_pub.publish(Int16(error))
+        self.error_pub.publish(Int16(self.angle))
 
     def closest_point(self, point, laneID, distance):
         x,y = point[0], point[1]
@@ -408,9 +402,10 @@ class Localization:
         plt.imshow(img)
         plt.plot(self.car_x, self.car_y, 'gx')
         plt.plot(self.obstacles_x, self.obstacles_y, 'y.')
-        plt.plot(self.distpoint[0], self.distpoint[1], 'bx')
-        plt.plot(self.target[0], self.target[1], 'rx')
+        plt.plot(self.distpoint[0], self.distpoint[1], 'bx', label='angle to car %5.3f' % self.angle)
         plt.axes().arrow(self.car_x, self.car_y, self.front_vec[0], self.front_vec[1], head_width=4, head_length=6, color='w')
+        plt.axes().arrow(self.car_x, self.car_y, self.target_vec[0], self.target_vec[1], head_width=4, head_length=6, color='r')
+        plt.legend()
         plt.show()
         plt.pause(0.0001)
 
