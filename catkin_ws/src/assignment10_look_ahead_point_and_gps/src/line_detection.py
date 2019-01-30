@@ -278,9 +278,10 @@ class Localization:
         target = np.linalg.norm(distpoint[-1]) - np.array([x,y]) # last element in array
 
         errorangle = np.degrees(np.arccos(np.dot(target,car) / (np.linalg.norm(target) * np.linalg.norm(car))))
-        error = errorangle * 2
         ''' As in line 191, if the error is 0, then 320 should be published.
         The error ranging from 0 to 640. '''
+        #error = errorangle * 2
+        error = (errorangle * 1.75) + 320 # +-180 * 1,75 ~ +-320
 
         print(carangle, errorangle, error)
 
