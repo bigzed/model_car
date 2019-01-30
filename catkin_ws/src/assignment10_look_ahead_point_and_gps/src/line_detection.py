@@ -260,16 +260,29 @@ class Localization:
         euler = tf.transformations.euler_from_quaternion(quaternion)
         yaw = euler[2]
         carangle = np.degrees(yaw) + 180 # transform to degrees and shift from -180/180 to 0/360
-        car = np.array([np.cos(yaw) + x, np.sin(yaw) + y])
-        print(car, yaw)
+
+        '''
+        Use an offset to shift the location point of the car along the viewing direction.
+        This can be usefull to find a more reasonable distant point closer to the driving direction
+        '''
+        offset = 1 # factor for unit vector
+        dist = 30
+        lane = 1 # (inner) or 2 (outer)
+        car = np.array([offset*np.cos(yaw) + x, offset*np.sin(yaw) + y])
 
         self.positions.append([y, x])
-        distpoint = self.closest_point([x,y], 1, 30)
+        ''' use the shifted location of the car instead of the exact point from the camera '''
+        #distpoint = self.closest_point([x,y], lane, dist)
+        distpoint = self.closest_point(car, lane, dist)
+
         target = np.linalg.norm(distpoint[-1]) - np.array([x,y]) # last element in array
 
         errorangle = np.degrees(np.arccos(np.dot(target,car) / (np.linalg.norm(target) * np.linalg.norm(car))))
-        error = (errorangle + 180) / 2
-        #print("distpoint[-1], [x,y], car, target, carangle, errorangle, error")
+        ''' As in line 191, if the error is 0, then 320 should be published.
+        The error ranging from 0 to 640. '''
+        #error = errorangle * 2
+        error = (errorangle * 1.75) + 320 # +-180 * 1,75 ~ +-320
+
         print(carangle, errorangle, error)
 
         self.error_pub.publish(Int16(error))
