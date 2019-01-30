@@ -236,7 +236,7 @@ class LineDetection:
 class Localization:
     def __init__(self):
         self.error_pub = rospy.Publisher("/localization/error", Int16, queue_size = 1)
-        self.local_sub = rospy.Subscriber("/localization/odom/12", Odometry, self.localization_callback, queue_size = 1)
+        self.local_sub = rospy.Subscriber("/localization/odom/3", Odometry, self.localization_callback, queue_size = 1)
         self.positions = []
 
     def localization_callback(self, msg):
@@ -254,65 +254,11 @@ class Localization:
 
         self.positions.append([y * 100, x * 100])
         distpoint = self.closest_point([x,y], 1, 20)
-        v = distpoint - [x,y]
-        errorangle = np.arccos((v[0]*u[0] + v[1]*u[1]) / (np.linalg.norm(v) * np.linalg.norm(u)))
+        v = distpoint - np.array([x,y])
+        errorangle = np.degrees(np.arccos(np.dot(v,u) / (np.linalg.norm(v) * np.linalg.norm(u))))
 
-        self.error_pub.publish(Int16(errorangle * 2))
-
-    def closest_point(self, point, laneID, distance):
-        """Returns closest point on trajectory."""
-        # Top or bottom center of circle
-        x, y = point[0], point[1]
-        if laneID == 1: #INNERLANE
-            laned = 16
-        elif laneID == 2: #OUTERLANE
-            laned = 48
-
-        if x == 215 and y == 196:
-            return np.array([215, 76 + laned])
-        if x == 215 and y == 404:
-            return np.array([215, 524 + laned])
-
-        dp = [0,0]
-        cp = [point]
-        # Top half circle:
-        distance += 1
-        first = True
-        while (distance > 0 or first):
-            first = False
-            if y <= 196:
-                dp,distance,ncp = closest_point_on_circle(np.array([x, y]),
-                        np.array([215, 196]), 121 + laned, distance)
-                if distance > 0:
-                    dp[0],dp[1] = 94 - laned, 197
-            # Bottom half circle:
-            elif y >= 404:
-                dp,distance,ncp = closest_point_on_circle(np.array([x, y]), np.array([215, 404]),
-                        121 + laned, distance)
-                if distance > 0:
-                    dp[0],dp[1] = 336 + laned, 403
-            # Left line
-            elif x <= 215:
-                ncp = np.array([94 - laned, y])
-                if y + distance > 404:
-                    distance -= (404 - y)
-                    dp = np.array([94 - laned, 404])
-                else:
-                    dp = np.array([94 - laned, y + distance])
-                    distance = 0
-            # Right line
-            else:
-                ncp = np.array([336 + laned, y])
-                if y - distance < 196:
-                    distance -= (y - 196)
-                    dp = np.array([336 + laned, 196])
-                else:
-                    dp = np.array([336 + laned, y - distance])
-                    distance = 0
-            x,y = dp[0],dp[1]
-            cp.append(ncp)
-        cp.append(dp)
-        return cp
+        print(errorangle)
+        self.error_pub.publish(Int16(errorangle[0] * 2))
 
     def closest_point_on_circle(self, p, c, r, d):
         v = p - c
@@ -346,6 +292,61 @@ class Localization:
             sin = r * np.sin(np.deg2rad(tangle))
             turnpoint = np.array([cos, sin]) + c
         return turnpoint, dist, closepoint
+
+    def closest_point(self, point, laneID, distance):
+        """Returns closest point on trajectory."""
+        # Top or bottom center of circle
+        x, y = point[0], point[1]
+        if laneID == 1: #INNERLANE
+            laned = 16
+        elif laneID == 2: #OUTERLANE
+            laned = 48
+
+        if x == 215 and y == 196:
+            return np.array([215, 76 + laned])
+        if x == 215 and y == 404:
+            return np.array([215, 524 + laned])
+
+        dp = [0,0]
+        cp = [point]
+        # Top half circle:
+        distance += 1
+        first = True
+        while (distance > 0 or first):
+            first = False
+            if y <= 196:
+                dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]),
+                        np.array([215, 196]), 121 + laned, distance)
+                if distance > 0:
+                    dp[0],dp[1] = 94 - laned, 197
+            # Bottom half circle:
+            elif y >= 404:
+                dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]), np.array([215, 404]),
+                        121 + laned, distance)
+                if distance > 0:
+                    dp[0],dp[1] = 336 + laned, 403
+            # Left line
+            elif x <= 215:
+                ncp = np.array([94 - laned, y])
+                if y + distance > 404:
+                    distance -= (404 - y)
+                    dp = np.array([94 - laned, 404])
+                else:
+                    dp = np.array([94 - laned, y + distance])
+                    distance = 0
+            # Right line
+            else:
+                ncp = np.array([336 + laned, y])
+                if y - distance < 196:
+                    distance -= (y - 196)
+                    dp = np.array([336 + laned, 196])
+                else:
+                    dp = np.array([336 + laned, y - distance])
+                    distance = 0
+            x,y = dp[0],dp[1]
+            cp.append(ncp)
+        cp.append(dp)
+        return cp
 
     def plot(self):
         # Error
