@@ -71,30 +71,41 @@ class VelocityController:
 
 class CaptainSteer:
     def __init__(self, debug):
-        self.error_queue = deque([], 1)
+        self.error_queue = deque([], 2)
         self.delta = 5
         self.old = 90
         self.p = 90
         self.k = -3
+        self.shutdown = 0
         self.debug = debug
 
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.sub_steering = rospy.Subscriber("/steering", UInt8, self.get_steering)
-        self.pub_speed = rospy.Publisher("/desired_speed", Float64, queue_size=100, latch=True)
+        #self.pub_speed = rospy.Publisher("/desired_speed", Float64, queue_size=100, latch=True)
+        self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
 
         #TODO error should be calculated from the pose:
         self.error_sub = rospy.Subscriber("/localization/error", Int16, self.error_callback)
         #self.error_sub = rospy.Subscriber("/image_processing/error", Int16, self.error_callback)
+        rospy.on_shutdown(self.shutdownhandler)
+
+    def shutdownhandler(self):
+        self.shutdown = 1
+        self.pub_speed.publish(Int16(0))
 
     def get_steering(self, msg):
         if msg.data < 50 or msg.data > 130:
-            self.pub_speed.publish(Float64(0.8))
+            # self.pub_speed.publish(Float64(0.8))
+            if self.shutdown == 0:
+                self.pub_speed.publish(Int16(250))
         else:
-            self.pub_speed.publish(Float64(1.2))
+            # self.pub_speed.publish(Float64(1.2))
+            if self.shutdown == 0:
+                self.pub_speed.publish(Int16(300))
 
     def error_callback(self, msg):
         data = msg.data
-        # append to list and slowly build to max 10 elements
+        # append to list and slowly build to max len
         self.error_queue.append(data)
 
         # average over all items
@@ -240,25 +251,28 @@ class Localization:
         self.positions = []
 
     def localization_callback(self, msg):
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
+        x = msg.pose.pose.position.x * 100
+        y = msg.pose.pose.position.y * 100
         quaternion = (msg.pose.pose.orientation.x,
                       msg.pose.pose.orientation.y,
                       msg.pose.pose.orientation.z,
                       msg.pose.pose.orientation.w)
         euler = tf.transformations.euler_from_quaternion(quaternion)
         yaw = euler[2]
-        carangle = (yaw / np.pi) * 180 + 180
-        u = [0]*2
-        u[0],u[1] = np.cos(carangle) + x, np.sin(carangle) + y
+        carangle = np.degrees(yaw) + 180 # transform to degrees and shift from -180/180 to 0/360
+        car = np.array([np.cos(yaw) + x, np.sin(yaw) + y])
+        print(car, yaw)
 
-        self.positions.append([y * 100, x * 100])
-        distpoint = self.closest_point([x,y], 1, 20)
-        v = distpoint - np.array([x,y])
-        errorangle = np.degrees(np.arccos(np.dot(v,u) / (np.linalg.norm(v) * np.linalg.norm(u))))
+        self.positions.append([y, x])
+        distpoint = self.closest_point([x,y], 1, 30)
+        target = np.linalg.norm(distpoint[-1]) - np.array([x,y]) # last element in array
 
-        print(errorangle)
-        self.error_pub.publish(Int16(errorangle[0] * 2))
+        errorangle = np.degrees(np.arccos(np.dot(target,car) / (np.linalg.norm(target) * np.linalg.norm(car))))
+        error = (errorangle + 180) / 2
+        #print("distpoint[-1], [x,y], car, target, carangle, errorangle, error")
+        print(carangle, errorangle, error)
+
+        self.error_pub.publish(Int16(error))
 
     def closest_point_on_circle(self, p, c, r, d):
         v = p - c
@@ -369,7 +383,7 @@ def main(args):
     cs = CaptainSteer(False)
     #ld = LineDetection(False)
     localization = Localization()
-    vc = VelocityController(False)
+    #vc = VelocityController(False)
 
     rospy.spin()
 
