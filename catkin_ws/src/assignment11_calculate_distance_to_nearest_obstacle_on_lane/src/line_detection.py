@@ -269,7 +269,6 @@ class LineDetection:
 class Localization:
     def __init__(self, car_id, debug = False):
         self.error_pub = rospy.Publisher("/localization/error", Int16, queue_size=1)
-        self.speed_pub = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         self.local_sub = rospy.Subscriber("/localization/odom/" + str(car_id), Odometry, self.localization_callback, queue_size=1)
         self.point_cloud_sub = rospy.Subscriber("/localization/point_cloud", PointCloud2, self.get_point_cloud, queue_size=1)
         self.positions = []
@@ -277,6 +276,17 @@ class Localization:
         self.tf = tf.TransformListener()
         self.debug = debug
         self.lane_id = 1
+        # Steering and speed regulation
+        self.p = 90
+        self.k = -2
+        self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
+        self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
+        # Shutdown control
+        rospy.on_shutdown(self.shutdownhandler)
+
+    def shutdownhandler(self):
+        self.shutdown = 1
+        self.pub_speed.publish(Int16(0))
 
     def get_point_cloud(self, msg):
         """Save current LIDAR PointCloud in Car coordinates"""
@@ -292,19 +302,29 @@ class Localization:
 
     def get_lane(self, car_x, car_y):
         """Returns LaneID based on obstacles on the road."""
+        if not self.tf.canTransform('map', self.point_cloud.header.frame_id, self.point_cloud.header.stamp):
+            return self.lane_id
 
         """Transform and filter for obstacles in 1.5m distance"""
         obstacles = []
         for p in pc2.read_points(self.point_cloud):
             ps = PointStamped(self.point_cloud.header, Point(p[0], p[1], p[2]))
-            new_ps = self.tf.transformPoint('map', ps)
+            try:
+                new_ps = self.tf.transformPoint('map', ps)
+            except tf.Exception:
+                print('Can not transform points.')
+                return self.lane_id
+
             """Our coordinates are in CM and switched because of the image plotting"""
             if abs(np.linalg.norm(np.array([car_x, car_y]) - np.array([new_ps.point.y * 100, new_ps.point.x * 100]))) < 150:
                 obstacles.append([new_ps.point.y * 100, new_ps.point.x * 100])
 
         """Plot detected obstacles"""
         if self.debug:
-            self.obstacles_x, self.obstacles_y = np.array(obstacles).T
+            if len(obstacles) == 0:
+                self.obstacles_x, self.obstacles_y = [], []
+            else:
+                self.obstacles_x, self.obstacles_y = np.array(obstacles).T
 
         """Check if obstacle is on either lane"""
         if self.lane_is_free(obstacles, self.lane_id):
@@ -314,7 +334,7 @@ class Localization:
             self.lane_id = (self.lane_id + 1) % 2
         else:
             """STOP"""
-            self.speed_pub.publish(Int16(0))
+            self.pub_speed.publish(Int16(0))
 
         return self.lane_id
 
@@ -332,29 +352,35 @@ class Localization:
         """Get lane_id based on obstacles"""
         self.lane_id = self.get_lane(self.car_x, self.car_y)
 
-        """Get next point on trajectory use to determine steering error"""
         quaternion = (msg.pose.pose.orientation.x,
                       msg.pose.pose.orientation.y,
                       msg.pose.pose.orientation.z,
                       msg.pose.pose.orientation.w)
         yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
-        carangle = np.degrees(yaw) # transform to degrees and shift from -180/180 to 0/360
         self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 10
         car = self.front_vec + np.array([self.car_x, self.car_y])
 
+        """Get next point on trajectory used to determine steering error"""
         self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)
+        print("Car Point: %s Distant Point: %s" % ([self.car_x, self.car_y], self.distpoint))
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
         self.angle = np.degrees(np.arccos(np.dot(self.target_vec, self.front_vec) / (np.linalg.norm(self.target_vec) * np.linalg.norm(self.front_vec))))
+        self.angle_vec = np.array([np.sin(np.radians(self.angle)), np.cos(np.radians(self.angle))]) * 10
 
+        """This makes CaptainSteer for Localization obsolete"""
+        self.steering_angle = (self.angle / self.k) + self.p
+        self.steering_vec = np.array([np.sin(np.radians(self.steering_angle)), np.cos(np.radians(self.steering_angle))]) * 10
+
+        #print("Angle: %5.3f Steering Angle: %5.3f" % (self.angle, self.steering_angle))
         self.plot()
-        self.error_pub.publish(Int16(self.angle))
+        self.pub_steering.publish(UInt8(self.steering_angle))
 
     def closest_point(self, point, laneID, distance):
         x,y = point[0], point[1]
 
-        if laneID == 1: #INNERLANE
+        if laneID == 0: #INNERLANE
             laned = 16
-        elif laneID == 2: #OUTERLANE
+        elif laneID == 1: #OUTERLANE
             laned = 48
 
         """Returns closest point on trajectory."""
@@ -405,13 +431,15 @@ class Localization:
         plt.plot(self.distpoint[0], self.distpoint[1], 'bx', label='angle to car %5.3f' % self.angle)
         plt.axes().arrow(self.car_x, self.car_y, self.front_vec[0], self.front_vec[1], head_width=4, head_length=6, color='w')
         plt.axes().arrow(self.car_x, self.car_y, self.target_vec[0], self.target_vec[1], head_width=4, head_length=6, color='r')
+        plt.axes().arrow(self.car_x, self.car_y, self.angle_vec[0], self.angle_vec[1], head_width=4, head_length=6, color='y')
+        plt.axes().arrow(self.car_x, self.car_y, self.steering_vec[0], self.steering_vec[1], head_width=4, head_length=6, color='b')
         plt.legend()
         plt.show()
         plt.pause(0.0001)
 
 def main(args):
     rospy.init_node("oval_circuit")
-    car_id  = 3
+    car_id  = 9
     #cs = CaptainSteer(False)
     tf = TFBroadcaster(car_id)
     lh = LazerHawk()
