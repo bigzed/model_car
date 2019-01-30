@@ -361,7 +361,7 @@ class Localization:
         car = self.front_vec + np.array([self.car_x, self.car_y])
 
         """Get next point on trajectory used to determine steering error"""
-        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)
+        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)[-1]
         print("Car Point: %s Distant Point: %s" % ([self.car_x, self.car_y], self.distpoint))
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
         self.angle = np.degrees(np.arccos(np.dot(self.target_vec, self.front_vec) / (np.linalg.norm(self.target_vec) * np.linalg.norm(self.front_vec))))
@@ -375,51 +375,93 @@ class Localization:
         self.plot()
         self.pub_steering.publish(UInt8(self.steering_angle))
 
-    def closest_point(self, point, laneID, distance):
-        x,y = point[0], point[1]
+    def closest_point_on_circle(self, p, c, r, d):
+        v = p - c
+        closepoint = c + ((v * r) / np.linalg.norm(v))
 
+        if d > 0:
+            top = False
+            if c[1] == 196:
+                top = True
+            dist = 0
+            turnpoint = closepoint
+            U = (2 * np.pi * r)
+            if d > (U/2):
+                temp = d % (U/2)
+                dist = d - temp
+                d = temp
+            distangle = (360 * (d / U))
+            if top:
+                ca = np.array([1,0])
+                pangle = np.degrees(np.arccos(np.dot(v,ca) / (np.linalg.norm(v) * np.linalg.norm(ca))))
+                tangle = 360-(pangle + distangle) # reverse target angle
+                if tangle < 180:
+                    dist += (180 - tangle) * (U/360)
+            else: #bot
+                ca = np.array([-1,0])
+                pangle = np.degrees(np.arccos(np.dot(v,ca) / (np.linalg.norm(v) * np.linalg.norm(ca))))
+                tangle = 180-(pangle + distangle) # reverse target angle
+                if tangle < 0:
+                    dist += abs(tangle) * (U/360)
+            cos = r * np.cos(np.deg2rad(tangle))
+            sin = r * np.sin(np.deg2rad(tangle))
+            turnpoint = np.array([cos, sin]) + c
+        return turnpoint, dist, closepoint
+
+    def closest_point(self, point, laneID, distance):
+        """Returns closest point on trajectory."""
+        # Top or bottom center of circle
+        x, y = point[0], point[1]
         if laneID == 0: #INNERLANE
             laned = 16
         elif laneID == 1: #OUTERLANE
             laned = 48
 
-        """Returns closest point on trajectory."""
-        # Top or bottom center of circle
         if x == 215 and y == 196:
             return np.array([215, 76 + laned])
         if x == 215 and y == 404:
             return np.array([215, 524 + laned])
 
+        dp = [0,0]
+        cp = [point]
         # Top half circle:
-        if y <= 196:
-            return self.dist_on_circle(np.array([x, y]), np.array([215, 196]), 121 + laned, distance)
-        # Bottom half circle:
-        elif y >= 404:
-            return self.dist_on_circle(np.array([x, y]), np.array([215, 404]), 121 + laned, distance)
-        # Left line
-        elif x <= 215:
-            if y + distance >= 404:
-                return self.closest_point_on_circle(np.array([x, y - distance]), np.array([215, 196]), 121 + laned)
-            return np.array([94 - laned, y + distance])
-        # Right line
-        else:
-            if y - distance >= 196:
-                return self.closest_point_on_circle(np.array([x, y - distance]), np.array([215, 404]), 121 + laned)
-            return np.array([336 + laned, y - distance])
-
-    def closest_point_on_circle(self, p, c, r):
-        v = p - c
-        return c + v / np.linalg.norm(v) * r
-
-    def dist_on_circle(self, p, c, r, dist):
-        v = p - c
-        distpoint = c + (v * r / np.linalg.norm(v))
-        U = 2 * np.pi * r
-        distanceangle = 360 * (dist / U)
-        c, s = np.cos(distanceangle), np.sin(distanceangle)
-        distpoint[0] = distpoint[0]*c + distpoint[1]*(-s)
-        distpoint[1] = distpoint[0]*s + distpoint[1]*(c)
-        return distpoint
+        distance += 1
+        first = True
+        while (distance > 0 or first):
+            first = False
+            if y <= 196:
+                dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]),
+                        np.array([215, 196]), 121 + laned, distance)
+                if distance > 0:
+                    dp[0],dp[1] = 94 - laned, 197
+            # Bottom half circle:
+            elif y >= 404:
+                dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]), np.array([215, 404]),
+                        121 + laned, distance)
+                if distance > 0:
+                    dp[0],dp[1] = 336 + laned, 403
+            # Left line
+            elif x <= 215:
+                ncp = np.array([94 - laned, y])
+                if y + distance > 404:
+                    distance -= (404 - y)
+                    dp = np.array([94 - laned, 404])
+                else:
+                    dp = np.array([94 - laned, y + distance])
+                    distance = 0
+            # Right line
+            else:
+                ncp = np.array([336 + laned, y])
+                if y - distance < 196:
+                    distance -= (y - 196)
+                    dp = np.array([336 + laned, 196])
+                else:
+                    dp = np.array([336 + laned, y - distance])
+                    distance = 0
+            x,y = dp[0],dp[1]
+            cp.append(ncp)
+        cp.append(dp)
+        return cp
 
     def plot(self):
         img = imread('texinput/pictures/map.png')
