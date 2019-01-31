@@ -87,8 +87,8 @@
     \item Wir benutzen die Funktion \emph{closest\_point()} von Übungsblatt 9 mit einigen Änderungen
       an der Funktion für die Bereiche im Kreis und einem leichten \emph{look ahead}.\\
       Der Lenkeinschlag wird aus dem Winkeln zwischen Orientierung des Autos und dem Vektor vom Auto
-      zum \emph{closest\_point} bestimmt. Diesen Winkel nehmen als Fehler fuer einen KP-Kontroller
-      den Lenkwinkel bestimmt.
+      zum \emph{closest\_point} bestimmt. Diesen Winkel nehmen wir als Fehler fuer einen
+      PD-Kontroller der den Lenkwinkel bestimmt.
     \item In unserer \emph{lane\_is\_free} Funktion wird f\"ur jedes erkannte Hindernis
       des LIDARs getestet ob es auf der derzeitigen Spur liegt, falls nicht behalte die Spur bei.
 
