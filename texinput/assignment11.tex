@@ -53,25 +53,47 @@
     \begin{figure}[h]
       \centering
       \includegraphics[scale=0.7]{pictures/circle_with_car_and_obstacles.png}
-      \caption{Karte mit Lokalisationen des Autos (grün) und erkannte Objekte des lidars (gelb). }
+      \caption{Karte mit Lokalisationen des Autos (grün) und erkannte Objekte des LIDARs (gelb). }
     \end{figure}
-    Quellcode: \\
-    \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization.py} \\
-    Video: \\
-    \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/U11_video2.MP4}
-	\begin{itemize}
-	    \item Wir benutzen 1.5 m als Distanz für den lidar sensor.
-	    \item Da die Odometriedaten von der Lokalisierung mit großer Verzögerung ankamen, gibt es die Lücken wie oben gezeigt auf dem Plot.
-	    \item Auf der Grafik erkennt man, dass das Auto auf der linken Linie vor dem obstacle auf zwei Linien zum Halt gekommen war. Auf der rechten Linie kann man sehen, dass dort ein obstacle war, diesem ist das Auto ausgewichen. Auf dem oberen Kreis, war ein weiteres obstacle, diesem ist das Auto ausgewichen und ist rechts rum gefahren. 
-	\end{itemize}
-	\newpage
+    \begin{itemize}
+      \item Quellcode: \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization.py}
+      \item Video: \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/U11_video2.MP4}
+    \end{itemize}
+
+	  Der LIDAR erkannt alle Objekte innerhalb von 1.5m vor dem Auto. `Vor dem Auto'  sind
+    hierbei alle Punkte die eine positive X-Koordinate im `laser'-Koordinatensystem haben. Die
+    LIDAR Daten sind kontinuierlich, allerdings ben\"otigen wir die Daten der Odometrie um sie
+    in ein geminsames Koordinatensystem zu bringen. Die Transformation wird durch einen
+
+    Wie man an den fehlenden gr\"unen Punkten im Plot erkennen kann, hat das Positionssystem
+    teilweise lange Verz\"ogerugen oder wie in der Fahrt aus der der Plot stammt, kann auch eine
+    komplette Kamera ausfallen. Bei dieser Fahrt war es wohl die mittlere was nach einem Neustart
+    behoben war.
+
+    Das Auto ist in dieser Fahrt ungef\"ahr an Koordinate $(80, 400)$ los gefahren und hat die
+    Strecke gegen den Uhrzeigersinn befahren. Auf der rechten Gerade erkennt man die
+    Ausweichbewegung um das Hindernis und auf oberen h"alfte der linken Gerade das Stoppen vor dem
+    Hindernis.
+
+    Zu beachten ist, das die anscheinend komplette Blockade der Strecke auf der rechten Seite durch
+    ein nachtr"agliches Verschieben des Hindernisses von der inneren auf die \"aussere Strecke
+    entstanden ist w"ahrend das Auto sich schon in der Kurve befand. Der LIDAR-Plot ist an der
+    stelle irref"uhrend.
 	\begin{enumerate}
-	    \item Für die Transformation benutzen wir tf.transformations mit TransformBroadcaster und sendTransform und TransformListener sowie transformPoint. Dann rechnen wir in die anderen Koordinaten um.
-	    \item Wir benutzen die Funktion closest point von Übungsblatt 9 mit einigen Änderungen an der Funktion für die Bereiche im Kreis. Dann berechnen wir einen closepoint relativ zum Punkt. Wir behalten einen Einheitsvektor vom Auto und merken uns die Richtung von diesem Richtungsvektor vom Auto. Ein weiterer Vektor zeigt auf den Kreismittelpunkt. Mithilfe der Vektoren zwischen Auto und closest point und Auto und Kreismittelpunkt und Einheitsvektor erhalten wir wir den Winkel.
-	    \item In unserer laneisfree Funktion benutzen u. a. die closest point Funktion mit Eingabe der Punkte von der point cloud und überprüfen somit, ob ein Punkt auf der lane liegt.
-	    \item Wir benutzen die laneisfree Funktion von 3. und übergeben dieser die lane auf der wir gerade fahren. Falls kein obstacle gefunden wurde, publish die Geschwindigkeit. Falls ein obstacle gefunden wurde dann setze die andere lane als aktuell. Falls keiner dieser beiden Fälle eintritt, dann ist ein obstacle auf beiden lanes und wir publishen die Geschwindigkeit 0.
+    \item Für die Transformation benutzen wir \emph{tf.transformations} mit
+      \emph{TransformBroadcaster} und \emph{sendTransform} und \emph{TransformListener} sowie
+      \emph{transformPoint}. Die LIDAR Daten werden dann in eine \emph{PointCloud2} umgewandelt und
+      durch die Transformation in das Koordinatensystem der Odomotetrie \"ubertragen.
+    \item Wir benutzen die Funktion \emph{closest\_point()} von Übungsblatt 9 mit einigen Änderungen
+      an der Funktion für die Bereiche im Kreis und einem leichten \emph{look ahead}.\\
+      Der Lenkeinschlag wird aus dem Winkeln zwischen Orientierung des Autos und dem Vektor vom Auto
+      zum \emph{closest\_point} bestimmt. Diesen Winkel nehmen als Fehler fuer einen KP-Kontroller
+      den Lenkwinkel bestimmt.
+    \item In unserer \emph{lane\_is\_free} Funktion wird f\"ur jedes erkannte Hindernis
+      des LIDARs getestet ob es auf der derzeitigen Spur liegt, falls nicht behalte die Spur bei.
+
+      Falls ein Hindernis auf dieser Spur ist, \"uberpr\"ufe die andere und falls diese frei ist,
+      wechsle die Spur. Sollte diese ebenfalls belegt sein halten wir an, bis eine der Spuren wieder
+      frei wird.
 	\end{enumerate}
-    
-	\newpage
-	
 \end{document}
