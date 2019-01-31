@@ -108,7 +108,7 @@ class CaptainSteer:
         self.delta = 5
         self.old = 90
         self.p = 90
-        self.k = -3
+        self.k = -0.5
         self.debug = debug
 
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
@@ -278,9 +278,10 @@ class Localization:
         self.lane_id = 1
         # Steering and speed regulation
         self.p = 90
-        self.k = -3
+        self.k = -0.5
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
+        self.old_steering = 90
         # Shutdown control
         rospy.on_shutdown(self.shutdownhandler)
 
@@ -366,10 +367,14 @@ class Localization:
         car = self.front_vec + np.array([self.car_x, self.car_y])
 
         """Get next point on trajectory used to determine steering error"""
-        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)[-1]
+        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 30)[-1]
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
         u_f = (self.front_vec / np.linalg.norm(self.front_vec))
         u_t = (self.target_vec / np.linalg.norm(self.target_vec))
+        print("Car: %s" % ([self.car_x, self.car_y]))
+        print("DistPoint: %s" % (self.distpoint))
+        print("FV: %s TV: %s" % (self.front_vec, self.target_vec))
+        print("Uf: %s Ut: %s" % (u_f, u_t))
         self.angle = np.arctan2(u_f[1], u_f[0]) - np.arctan2(u_t[1], u_t[0])
         self.angle_vec = np.array([np.sin(self.angle), np.cos(self.angle)]) * 10
 
@@ -380,6 +385,10 @@ class Localization:
         print("Angle: %5.3f Steering Angle: %5.3f" % (np.degrees(self.angle), self.steering_angle))
         if self.debug:
             self.plot()
+
+        if self.steering_angle > 180 or self.steering_angle < 0:
+            self.steering_angle = self.old_steering
+        self.old_steering = self.steering_angle
         self.pub_steering.publish(UInt8(self.steering_angle))
 
     def closest_point_on_circle(self, p, c, r, d):
