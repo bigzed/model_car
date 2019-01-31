@@ -278,7 +278,7 @@ class Localization:
         self.lane_id = 1
         # Steering and speed regulation
         self.p = 90
-        self.k = -2
+        self.k = -3
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         # Shutdown control
@@ -308,6 +308,9 @@ class Localization:
         """Transform and filter for obstacles in 1.5m distance"""
         obstacles = []
         for p in pc2.read_points(self.point_cloud):
+            if p[0] > 0:
+                """Ignore points behind the LIDAR"""
+                continue
             ps = PointStamped(self.point_cloud.header, Point(p[0], p[1], p[2]))
             try:
                 new_ps = self.tf.transformPoint('map', ps)
@@ -329,9 +332,11 @@ class Localization:
         """Check if obstacle is on either lane"""
         if self.lane_is_free(obstacles, self.lane_id):
             """STAY"""
+            self.pub_speed.publish(Int16(200))
         elif self.lane_is_free(obstacles, (self.lane_id + 1) % 2):
             """SWITCH"""
             self.lane_id = (self.lane_id + 1) % 2
+            self.pub_speed.publish(Int16(200))
         else:
             """STOP"""
             self.pub_speed.publish(Int16(0))
@@ -362,17 +367,19 @@ class Localization:
 
         """Get next point on trajectory used to determine steering error"""
         self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 15)[-1]
-        print("Car Point: %s Distant Point: %s" % ([self.car_x, self.car_y], self.distpoint))
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
-        self.angle = np.degrees(np.arccos(np.dot(self.target_vec, self.front_vec) / (np.linalg.norm(self.target_vec) * np.linalg.norm(self.front_vec))))
-        self.angle_vec = np.array([np.sin(np.radians(self.angle)), np.cos(np.radians(self.angle))]) * 10
+        u_f = (self.front_vec / np.linalg.norm(self.front_vec))
+        u_t = (self.target_vec / np.linalg.norm(self.target_vec))
+        self.angle = np.arctan2(u_f[1], u_f[0]) - np.arctan2(u_t[1], u_t[0])
+        self.angle_vec = np.array([np.sin(self.angle), np.cos(self.angle)]) * 10
 
         """This makes CaptainSteer for Localization obsolete"""
-        self.steering_angle = (self.angle / self.k) + self.p
+        self.steering_angle = (np.degrees(self.angle) / self.k) + self.p
         self.steering_vec = np.array([np.sin(np.radians(self.steering_angle)), np.cos(np.radians(self.steering_angle))]) * 10
 
-        #print("Angle: %5.3f Steering Angle: %5.3f" % (self.angle, self.steering_angle))
-        self.plot()
+        print("Angle: %5.3f Steering Angle: %5.3f" % (np.degrees(self.angle), self.steering_angle))
+        if self.debug:
+            self.plot()
         self.pub_steering.publish(UInt8(self.steering_angle))
 
     def closest_point_on_circle(self, p, c, r, d):
@@ -481,7 +488,7 @@ class Localization:
 
 def main(args):
     rospy.init_node("oval_circuit")
-    car_id  = 9
+    car_id  = 3
     #cs = CaptainSteer(False)
     tf = TFBroadcaster(car_id)
     lh = LazerHawk()
