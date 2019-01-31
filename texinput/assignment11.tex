@@ -60,40 +60,41 @@
       \item Video: \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/U11_video2.MP4}
     \end{itemize}
 
-	  Der LIDAR erkannt alle Objekte innerhalb von 1.5m vor dem Auto. `Vor dem Auto'  sind
-    hierbei alle Punkte die eine positive X-Koordinate im `laser'-Koordinatensystem haben. Die
-    LIDAR Daten sind kontinuierlich, allerdings ben\"otigen wir die Daten der Odometrie um sie
-    in ein geminsames Koordinatensystem zu bringen.
+	  Der LIDAR erkennt alle Objekte innerhalb von 1.5m vor dem Auto. Dies umfasst alle Punkte,
+    die eine positive X-Koordinate im `laser'-Koordinatensystem haben. Die
+    LIDAR Daten sind kontinuierlich, allerdings ben"otigt der Algorithmus die Daten der Odometrie
+    um sie in ein gemeinsames Koordinatensystem zu transformieren.
 
-    Wie man an den fehlenden gr\"unen Punkten im Plot erkennen kann, hat das Positionssystem
-    teilweise lange Verz\"ogerugen oder wie in der Fahrt aus der der Plot stammt, kann auch eine
-    komplette Kamera ausfallen. Bei dieser Fahrt war es wohl die mittlere was nach einem Neustart
-    behoben war.
+    Wie man an den fehlenden gr"unen Punkten im Plot erkennen kann, hat das Positionssystem
+    teilweise lange Verz"ogerungen und es kann auch zum kompletten Ausfall einer Kamera w"ahrend
+    einer Fahrt kommen. In der abgebildeten Fahrt fiel wohl die mittlere Kamera aus, was durch
+    einen Neustart behoben werden konnte.
 
-    Das Auto ist in dieser Fahrt ungef\"ahr an Koordinate $(80, 400)$ los gefahren und hat die
-    Strecke gegen den Uhrzeigersinn befahren. Auf der rechten Gerade erkennt man die
-    Ausweichbewegung um das Hindernis und auf oberen h"alfte der linken Gerade das Stoppen vor dem
-    Hindernis.
+    Das Auto ist in dieser Fahrt ungef"ahr an Koordinate $(80 | 400)$ losgefahren und hat die
+    Strecke gegen den Uhrzeigersinn befahren. Auf der rechten Geraden erkennt man die
+    Ausweichbewegung beginnend etwa bei $(400 | 400)$ um das Hindernis und auf der oberen H"alfte
+    der linken Geraden etwa bei $(60 | 280)$ das Stoppen vor dem Hindernis auf beiden Spuren.
 
-    Zu beachten ist, das die anscheinend komplette Blockade der Strecke auf der rechten Seite durch
-    ein nachtr"agliches Verschieben des Hindernisses von der inneren auf die \"aussere Strecke
-    entstanden ist w"ahrend das Auto sich schon in der Kurve befand. Der LIDAR-Plot ist an der
-    stelle irref"uhrend.
+    Zu beachten ist, dass die anscheinend komplette Blockade beider Spuren auf der rechten Geraden
+    durch ein nachtr"agliches Verschieben des Hindernisses von der inneren auf die "aussere Spur
+    entstanden ist, w"ahrend das Auto sich bereits in der nachfolgenden Kurve befand.
+    Der LIDAR-Plot ist daher an dieser Stelle irref"uhrend.
 	\begin{enumerate}
     \item Für die Transformation benutzen wir \emph{tf.transformations} mit
-      \emph{TransformBroadcaster} und \emph{sendTransform} und \emph{TransformListener} sowie
-      \emph{transformPoint}. Die LIDAR Daten werden dann in eine \emph{PointCloud2} umgewandelt und
-      durch die Transformation in das Koordinatensystem der Odomotetrie \"ubertragen.
-    \item Wir benutzen die Funktion \emph{closest\_point()} von Übungsblatt 9 mit einigen Änderungen
-      an der Funktion für die Bereiche im Kreis und einem leichten \emph{look ahead}.\\
-      Der Lenkeinschlag wird aus dem Winkeln zwischen Orientierung des Autos und dem Vektor vom Auto
-      zum \emph{closest\_point} bestimmt. Diesen Winkel nehmen wir als Fehler fuer einen
-      PD-Kontroller der den Lenkwinkel bestimmt.
-    \item In unserer \emph{lane\_is\_free} Funktion wird f\"ur jedes erkannte Hindernis
-      des LIDARs getestet ob es auf der derzeitigen Spur liegt, falls nicht behalte die Spur bei.
-
-      Falls ein Hindernis auf dieser Spur ist, \"uberpr\"ufe die andere und falls diese frei ist,
-      wechsle die Spur. Sollte diese ebenfalls belegt sein halten wir an, bis eine der Spuren wieder
-      frei wird.
+        \emph{TransformBroadcaster} und \emph{sendTransform} und \emph{TransformListener} sowie
+        \emph{transformPoint}. Die LIDAR Daten werden dann in eine \emph{PointCloud2} umgewandelt
+        und durch die Transformation in das Koordinatensystem der Odomotetrie "ubertragen.
+    \item Wir benutzen die Funktion \emph{closest\_point()} von Übungsblatt 9 mit einigen
+        "Anderungen an der Funktion f"ur die Bereiche im Kreis und einem leichten
+        \emph{look ahead} der die Fahrzeugposition in Richtung der Vorderachse verschiebt.\\
+        Der Lenkeinschlag wird aus dem Winkeln zwischen Orientierung des Autos (yaw) und dem
+        Vektor vom Auto zum \emph{closest\_point} bestimmt. Diesen Winkel nehmen wir als Fehler
+        f"ur einen PD-Controller welcher den Lenkwinkel bestimmt.
+    \item In unserer \emph{lane\_is\_free} Funktion wird f"ur jedes erkannte Hindernis
+        des LIDARs getestet ob es auf der derzeitigen Spur liegt, falls nicht wird die Spur
+        beibehalten. \\
+        Falls ein Hindernis auf dieser Spur ist, "uberpr"uft der Algorithmus die andere Spur und
+        das Auto wechselt, wenn diese frei ist, die Spur. Sollte diese ebenfalls belegt sein hält
+        es an, bis eine der Spuren wieder frei wird.
 	\end{enumerate}
 \end{document}
