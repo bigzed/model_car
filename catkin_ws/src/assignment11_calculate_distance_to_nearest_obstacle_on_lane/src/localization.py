@@ -190,12 +190,6 @@ class Localization:
         if self.debug:
             self.plot()
 
-        print("Angle: %5.3f --> Steering Angle: %5.3f" % (np.degrees(self.angle_rad), self.steering_angle))
-        print("TargetVec: %s" % self.target_vec)
-        print("CarVec: %s" % self.front_vec)
-        print("Unit TargetVec: %s" % u_t)
-        print("Unit FrontVec: %s" % u_f)
-
         self.pub_steering.publish(UInt8(self.steering_angle))
 
     def closest_point_on_circle(self, p, c, r, d):
