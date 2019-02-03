@@ -34,7 +34,10 @@ class TFBroadcaster:
         q = quaternion_from_euler(0, 0, np.pi)
         q_odom = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
         q2 = quaternion_multiply(q_odom, q)
-        br.sendTransform((msg.pose.pose.position.x, msg.pose.pose.position.y, 0),
+        yaw = tf.transformations.euler_from_quaternion(q2)[2]
+        """Move point by 10cm back to correct LIDAR position."""
+        lidar_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 0.1
+        br.sendTransform((msg.pose.pose.position.x - lidar_vec[0], msg.pose.pose.position.y - lidar_vec[1], 0),
                 (q2[0], q2[1], q2[2], q2[3]),
                 msg.header.stamp, 'laser', 'map')
 
@@ -65,8 +68,10 @@ class Localization:
         # Steering and speed regulation
         self.p = 90
         self.k = -0.5
+        self.desired_speed = 200
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
+        self.sub_speed = rospy.Subscriber("/localization/desired_speed", Int16, self.get_desired_speed, queue_size=1)
         # Shutdown control
         rospy.on_shutdown(self.shutdownhandler)
 
@@ -77,6 +82,9 @@ class Localization:
     def get_point_cloud(self, msg):
         """Save current LIDAR PointCloud in Car coordinates"""
         self.point_cloud = msg
+
+    def get_desired_speed(self, msg):
+        self.desired_speed = msg.data
 
     def lane_is_free(self, obstacles, lane_id):
         for p in obstacles:
@@ -94,12 +102,10 @@ class Localization:
         """Transform and filter for obstacles in 1.5m distance"""
         obstacles = []
         for p in pc2.read_points(self.point_cloud):
-            """Move LIDAR point 10cm back to adjust coordinates"""
-            adjusted_x = p[0] + 0.1
-            if adjusted_x > 0:
+            if p[0] > 0:
                 """Ignore points behind the LIDAR"""
                 continue
-            ps = PointStamped(self.point_cloud.header, Point(adjusted_x, p[1], p[2]))
+            ps = PointStamped(self.point_cloud.header, Point(p[0], p[1], p[2]))
             try:
                 new_ps = self.tf.transformPoint('map', ps)
             except tf.Exception:
@@ -120,11 +126,11 @@ class Localization:
         """Check if obstacle is on either lane"""
         if self.lane_is_free(obstacles, self.lane_id):
             """STAY"""
-            self.pub_speed.publish(Int16(200))
+            self.pub_speed.publish(Int16(self.desired_speed))
         elif self.lane_is_free(obstacles, (self.lane_id + 1) % 2):
             """SWITCH"""
             self.lane_id = (self.lane_id + 1) % 2
-            self.pub_speed.publish(Int16(200))
+            self.pub_speed.publish(Int16(self.desired_speed))
         else:
             """STOP"""
             self.pub_speed.publish(Int16(0))
@@ -180,7 +186,6 @@ class Localization:
             np.cos(np.radians(self.steering_angle - 90)) * self.front_vec[0] - np.sin(np.radians(self.steering_angle - 90)) * self.front_vec[1],
             np.sin(np.radians(self.steering_angle - 90)) * self.front_vec[0] + np.cos(np.radians(self.steering_angle - 90)) * self.front_vec[1]
             ])
-
 
         if self.debug:
             self.plot()
