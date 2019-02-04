@@ -159,16 +159,18 @@ class Localization:
         self.car_x = msg.pose.pose.position.y * 100
         self.car_y = msg.pose.pose.position.x * 100
 
-        """Get lane_id based on obstacles"""
-        self.lane_id = self.get_lane(self.car_x, self.car_y)
-
+        """Move car ontop of front axel"""
         quaternion = (msg.pose.pose.orientation.x,
                       msg.pose.pose.orientation.y,
                       msg.pose.pose.orientation.z,
                       msg.pose.pose.orientation.w)
         yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
+        """The QR-Code is approx 10cm from the front axle"""
         self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 10
-        car = self.front_vec + np.array([self.car_x, self.car_y])
+        self.car_x, self.car_y = self.front_vec + np.array([self.car_x, self.car_y])
+
+        """Get lane_id based on obstacles"""
+        self.lane_id = self.get_lane(self.car_x, self.car_y)
 
         """Get next point on trajectory used to determine steering error"""
         self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 30)[-1]
