@@ -34,10 +34,10 @@ class TFBroadcaster:
         q = quaternion_from_euler(0, 0, np.pi)
         q_odom = (msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
         q2 = quaternion_multiply(q_odom, q)
-        yaw = tf.transformations.euler_from_quaternion(q2)[2]
+        yaw = tf.transformations.euler_from_quaternion(q_odom)[2]
         """Move point by 10cm back to correct LIDAR position."""
-        lidar_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 0.1
-        br.sendTransform((msg.pose.pose.position.x - lidar_vec[0], msg.pose.pose.position.y - lidar_vec[1], 0),
+        lidar_vec = np.array([np.cos(yaw), np.sin(yaw)]) * 0.24
+        br.sendTransform((msg.pose.pose.position.x + lidar_vec[0], msg.pose.pose.position.y + lidar_vec[1], 0),
                 (q2[0], q2[1], q2[2], q2[3]),
                 msg.header.stamp, 'laser', 'map')
 
@@ -67,11 +67,13 @@ class Localization:
         self.lane_id = 1
         # Steering and speed regulation
         self.p = 90
-        self.k = -0.5
+        self.k = -1
         self.desired_speed = 200
+        self.look_ahead = 30
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         self.sub_speed = rospy.Subscriber("/localization/desired_speed", Int16, self.get_desired_speed, queue_size=1)
+        self.sub_look_ahead = rospy.Subscriber("/localization/look_ahead", Int16, self.get_look_ahead, queue_size=1)
         # Shutdown control
         rospy.on_shutdown(self.shutdownhandler)
 
@@ -86,10 +88,13 @@ class Localization:
     def get_desired_speed(self, msg):
         self.desired_speed = msg.data
 
+    def get_look_ahead(self, msg):
+        self.look_ahead = msg.data
+
     def lane_is_free(self, obstacles, lane_id):
         for p in obstacles:
             point = np.array(p)
-            if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 16:
+            if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 10:
                 return False
 
         return True
@@ -110,6 +115,7 @@ class Localization:
                 new_ps = self.tf.transformPoint('map', ps)
             except tf.Exception:
                 print('Can not transform points.')
+                self.pub_speed.publish(Int16(self.desired_speed))
                 return self.lane_id
 
             """Our coordinates are in CM and switched because of the image plotting"""
@@ -144,9 +150,9 @@ class Localization:
         """Calculate direction"""
         cross = np.cross(np.append(u_f, 0), np.append(u_t, 0))
         if np.dot(cross, plane_normal) <= 0:
-            return angle
+            return min(angle, (np.pi / 2))
         else:
-            return -1 * angle
+            return max(-1 * angle, (np.pi / -2))
 
     def localization_callback(self, msg):
         """Return if we have no data yet"""
@@ -166,14 +172,14 @@ class Localization:
                       msg.pose.pose.orientation.w)
         yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
         """The QR-Code is approx 10cm from the front axle"""
-        self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 10
+        self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 35
         self.car_x, self.car_y = self.front_vec + np.array([self.car_x, self.car_y])
 
         """Get lane_id based on obstacles"""
         self.lane_id = self.get_lane(self.car_x, self.car_y)
 
         """Get next point on trajectory used to determine steering error"""
-        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, 30)[-1]
+        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, self.look_ahead)[-1]
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
         """Angle between car orientation and target vector"""
         u_f = self.front_vec / np.linalg.norm(self.front_vec)
