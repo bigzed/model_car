@@ -70,6 +70,8 @@ class Localization:
         self.k = -1
         self.desired_speed = 200
         self.look_ahead = 30
+        self.switched = False
+        self.switched_at = None
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         self.sub_speed = rospy.Subscriber("/localization/desired_speed", Int16, self.get_desired_speed, queue_size=1)
@@ -90,6 +92,16 @@ class Localization:
 
     def get_look_ahead(self, msg):
         self.look_ahead = msg.data
+
+    def speed(self):
+        if self.switched:
+            if self.switched_at > ropsy.Time.now() - rospy.Duration(3):
+                return 200
+            else:
+                self.switched = False
+
+        return self.desired_speed
+
 
     def lane_is_free(self, obstacles, lane_id):
         for p in obstacles:
@@ -132,11 +144,13 @@ class Localization:
         """Check if obstacle is on either lane"""
         if self.lane_is_free(obstacles, self.lane_id):
             """STAY"""
-            self.pub_speed.publish(Int16(self.desired_speed))
+            self.pub_speed.publish(Int16(self.speed()))
         elif self.lane_is_free(obstacles, (self.lane_id + 1) % 2):
             """SWITCH"""
+            self.switched = True
+            self.switched_at = rospy.Time.now()
             self.lane_id = (self.lane_id + 1) % 2
-            self.pub_speed.publish(Int16(self.desired_speed))
+            self.pub_speed.publish(Int16(self.speed()))
         else:
             """STOP"""
             self.pub_speed.publish(Int16(0))
