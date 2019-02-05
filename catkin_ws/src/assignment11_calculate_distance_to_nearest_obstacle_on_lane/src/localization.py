@@ -60,14 +60,15 @@ class Localization:
         self.local_sub = rospy.Subscriber("/localization/odom/" + str(car_id), Odometry, self.localization_callback, queue_size=1)
         self.point_cloud_sub = rospy.Subscriber("/localization/point_cloud", PointCloud2, self.get_point_cloud, queue_size=1)
         self.positions = []
-        self.point_cloud = None
         self.tf = tf.TransformListener()
         self.debug = debug
-        self.lane_id = 1
+        self.lane_id = 0
         # Steering and speed regulation
+        self.car_x = None
+        self.car_y = None
         self.p = 90
         self.k = -1
-        self.desired_speed = 300
+        self.desired_speed = 700
         self.look_ahead = 50
         self.switched = False
         self.switched_at = None
@@ -88,7 +89,11 @@ class Localization:
 
     def get_point_cloud(self, msg):
         """Save current LIDAR PointCloud in Car coordinates"""
-        self.point_cloud = msg
+        if not self.car_x or not self.car_y:
+            return
+
+        self.lane_id = self.get_lane(msg)
+
 
     def get_desired_speed(self, msg):
         self.desired_speed = msg.data
@@ -99,7 +104,7 @@ class Localization:
     def speed(self):
         if self.switched:
             if self.switched_at > rospy.Time.now() - rospy.Duration(3):
-                return max(self.desired_speed - 100, 300)
+                return max(self.desired_speed - 100, 400)
             else:
                 self.look_ahead_mod = 1
                 self.switched = False
@@ -118,19 +123,20 @@ class Localization:
 
         return True
 
-    def get_lane(self, car_x, car_y):
+    def get_lane(self, point_cloud):
         """Returns LaneID based on obstacles on the road."""
-        if not self.tf.canTransform('map', self.point_cloud.header.frame_id, self.point_cloud.header.stamp):
+        if not self.tf.canTransform('map', point_cloud.header.frame_id, point_cloud.header.stamp):
             return self.lane_id
 
         """Transform and filter for obstacles in 1.5m distance"""
         obstacles = []
-        for p in pc2.read_points(self.point_cloud):
+        for p in pc2.read_points(point_cloud):
             if p[0] > 0:
                 """Ignore points behind the LIDAR"""
                 continue
-            ps = PointStamped(self.point_cloud.header, Point(p[0], p[1], p[2]))
+            ps = PointStamped(point_cloud.header, Point(p[0], p[1], p[2]))
             try:
+                self.tf.waitForTransform('map', 'laser', point_cloud.header.stamp, rospy.Duration(0.05))
                 new_ps = self.tf.transformPoint('map', ps)
             except tf.Exception as e:
                 print('Can not transform points.')
@@ -138,7 +144,7 @@ class Localization:
                 return self.lane_id
 
             """Our coordinates are in CM and switched because of the image plotting"""
-            if abs(np.linalg.norm(np.array([car_x, car_y]) - np.array([new_ps.point.y * 100, new_ps.point.x * 100]))) < 150:
+            if abs(np.linalg.norm(np.array([self.car_x, self.car_y]) - np.array([new_ps.point.y * 100, new_ps.point.x * 100]))) < 150:
                 obstacles.append([new_ps.point.y * 100, new_ps.point.x * 100])
 
         """Plot detected obstacles"""
@@ -177,15 +183,9 @@ class Localization:
             return max(-1 * angle, (np.pi / -2))
 
     def localization_callback(self, msg):
-        """Return if we have no data yet"""
-        if not self.point_cloud:
-            return
-        if not self.tf.canTransform('map', self.point_cloud.header.frame_id, self.point_cloud.header.stamp):
-            return
-
         """Odometry coordinates are in M ours are in CM and switched because of the image plotting"""
-        self.car_x = msg.pose.pose.position.y * 100
-        self.car_y = msg.pose.pose.position.x * 100
+        car_x = msg.pose.pose.position.y * 100
+        car_y = msg.pose.pose.position.x * 100
 
         """Move car ontop of front axel"""
         quaternion = (msg.pose.pose.orientation.x,
@@ -195,10 +195,7 @@ class Localization:
         yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
         """The QR-Code is approx 35cm from the front axle"""
         self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 35
-        self.car_x, self.car_y = self.front_vec + np.array([self.car_x, self.car_y])
-
-        """Get lane_id based on obstacles"""
-        self.lane_id = self.get_lane(self.car_x, self.car_y)
+        self.car_x, self.car_y = self.front_vec + np.array([car_x, car_y])
 
         """Get lookahead based on car position"""
         if self.car_y <= (200) or self.car_y >= (404):
