@@ -10,7 +10,6 @@ import time
 import tf
 import sensor_msgs.point_cloud2 as pc2
 
-from sklearn import linear_model
 from scipy.misc import imread
 from cv_bridge import CvBridge, CvBridgeError
 from collections import namedtuple
@@ -72,6 +71,8 @@ class Localization:
         self.look_ahead = 50
         self.switched = False
         self.switched_at = None
+        self.switched_mod = 0
+        self.look_ahead_mod = 1
         self.look_ahead_curve = 30
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
@@ -97,9 +98,10 @@ class Localization:
 
     def speed(self):
         if self.switched:
-            if self.switched_at > ropsy.Time.now() - rospy.Duration(3):
-                return 200
+            if self.switched_at > rospy.Time.now() - rospy.Duration(3):
+                return max(self.desired_speed - 100, 300)
             else:
+                self.look_ahead_mod = 1
                 self.switched = False
 
         return self.desired_speed
@@ -130,8 +132,9 @@ class Localization:
             ps = PointStamped(self.point_cloud.header, Point(p[0], p[1], p[2]))
             try:
                 new_ps = self.tf.transformPoint('map', ps)
-            except tf.Exception:
+            except tf.Exception as e:
                 print('Can not transform points.')
+                print("E: %s" % str(e))
                 return self.lane_id
 
             """Our coordinates are in CM and switched because of the image plotting"""
@@ -152,6 +155,7 @@ class Localization:
         elif self.lane_is_free(obstacles, (self.lane_id + 1) % 2):
             """SWITCH"""
             self.switched = True
+            self.look_ahead_mod = 2
             self.switched_at = rospy.Time.now()
             self.lane_id = (self.lane_id + 1) % 2
             self.pub_speed.publish(Int16(self.speed()))
@@ -189,7 +193,7 @@ class Localization:
                       msg.pose.pose.orientation.z,
                       msg.pose.pose.orientation.w)
         yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
-        """The QR-Code is approx 10cm from the front axle"""
+        """The QR-Code is approx 35cm from the front axle"""
         self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 35
         self.car_x, self.car_y = self.front_vec + np.array([self.car_x, self.car_y])
 
@@ -197,10 +201,10 @@ class Localization:
         self.lane_id = self.get_lane(self.car_x, self.car_y)
 
         """Get lookahead based on car position"""
-        if self.car_y <= (196 + self.look_ahead) or self.car_y >= (404 - self.look_ahead):
-            look_ahead = self.look_ahead_curve
+        if self.car_y <= (200) or self.car_y >= (404):
+            look_ahead = self.look_ahead_curve / self.look_ahead_mod
         else:
-            look_ahead = self.look_ahead
+            look_ahead = self.look_ahead / self.look_ahead_mod
         """Get next point on trajectory used to determine steering error"""
         self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, look_ahead)[-1]
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
@@ -231,7 +235,7 @@ class Localization:
 
         if d > 0:
             top = False
-            if c[1] == 196:
+            if c[1] == 200:
                 top = True
             dist = 0
             turnpoint = closepoint
@@ -267,7 +271,7 @@ class Localization:
         elif laneID == 1: #OUTERLANE
             laned = 48
 
-        if x == 215 and y == 196:
+        if x == 215 and y == 200:
             return np.array([215, 76 + laned])
         if x == 215 and y == 404:
             return np.array([215, 524 + laned])
@@ -279,9 +283,9 @@ class Localization:
         first = True
         while (distance > 0 or first):
             first = False
-            if y <= 196:
+            if y <= 200:
                 dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]),
-                        np.array([215, 196]), 121 + laned, distance)
+                        np.array([215, 200]), 121 + laned, distance)
                 if distance > 0:
                     dp[0],dp[1] = 94 - laned, 197
             # Bottom half circle:
@@ -302,9 +306,9 @@ class Localization:
             # Right line
             else:
                 ncp = np.array([336 + laned, y])
-                if y - distance < 196:
-                    distance -= (y - 196)
-                    dp = np.array([336 + laned, 196])
+                if y - distance < 200:
+                    distance -= (y - 200)
+                    dp = np.array([336 + laned, 200])
                 else:
                     dp = np.array([336 + laned, y - distance])
                     distance = 0
@@ -330,11 +334,11 @@ class Localization:
 
 def main(args):
     rospy.init_node("oval_circuit")
-    car_id  = 3
+    car_id  = 5
 
     tf = TFBroadcaster(car_id)
     lh = LazerHawk()
-    localization = Localization(car_id, False)
+    localization = Localization(car_id, True)
 
     rospy.spin()
 
