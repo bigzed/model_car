@@ -68,8 +68,8 @@ class Localization:
         # Steering and speed regulation
         self.p = 90
         self.k = -1
-        self.desired_speed = 200
-        self.look_ahead = 30
+        self.desired_speed = 300
+        self.look_ahead = 50
         self.switched = False
         self.switched_at = None
         self.look_ahead_curve = 30
