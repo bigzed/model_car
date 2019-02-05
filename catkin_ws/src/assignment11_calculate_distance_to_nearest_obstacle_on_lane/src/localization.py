@@ -72,10 +72,12 @@ class Localization:
         self.look_ahead = 30
         self.switched = False
         self.switched_at = None
+        self.look_ahead_curve = 30
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         self.sub_speed = rospy.Subscriber("/localization/desired_speed", Int16, self.get_desired_speed, queue_size=1)
         self.sub_look_ahead = rospy.Subscriber("/localization/look_ahead", Int16, self.get_look_ahead, queue_size=1)
+        self.sub_look_ahead_curve = rospy.Subscriber("/localization/look_ahead_curve", Int16, self.get_look_ahead_curve, queue_size=1)
         # Shutdown control
         rospy.on_shutdown(self.shutdownhandler)
 
@@ -102,11 +104,14 @@ class Localization:
 
         return self.desired_speed
 
+    def get_look_ahead_curve(self, msg):
+        self.look_ahead_curve = msg.data
 
     def lane_is_free(self, obstacles, lane_id):
         for p in obstacles:
             point = np.array(p)
             if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 10:
+                print(point)
                 return False
 
         return True
@@ -127,7 +132,6 @@ class Localization:
                 new_ps = self.tf.transformPoint('map', ps)
             except tf.Exception:
                 print('Can not transform points.')
-                self.pub_speed.publish(Int16(self.desired_speed))
                 return self.lane_id
 
             """Our coordinates are in CM and switched because of the image plotting"""
@@ -192,8 +196,13 @@ class Localization:
         """Get lane_id based on obstacles"""
         self.lane_id = self.get_lane(self.car_x, self.car_y)
 
+        """Get lookahead based on car position"""
+        if self.car_y <= (196 + self.look_ahead) or self.car_y >= (404 - self.look_ahead):
+            look_ahead = self.look_ahead_curve
+        else:
+            look_ahead = self.look_ahead
         """Get next point on trajectory used to determine steering error"""
-        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, self.look_ahead)[-1]
+        self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, look_ahead)[-1]
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
         """Angle between car orientation and target vector"""
         u_f = self.front_vec / np.linalg.norm(self.front_vec)
@@ -208,6 +217,8 @@ class Localization:
             np.cos(np.radians(self.steering_angle - 90)) * self.front_vec[0] - np.sin(np.radians(self.steering_angle - 90)) * self.front_vec[1],
             np.sin(np.radians(self.steering_angle - 90)) * self.front_vec[0] + np.cos(np.radians(self.steering_angle - 90)) * self.front_vec[1]
             ])
+
+        print("Angle: %s -> Steering Angle: %s" % (np.degrees(self.angle_rad), self.steering_angle))
 
         if self.debug:
             self.plot()
@@ -323,7 +334,7 @@ def main(args):
 
     tf = TFBroadcaster(car_id)
     lh = LazerHawk()
-    localization = Localization(car_id, True)
+    localization = Localization(car_id, False)
 
     rospy.spin()
 
