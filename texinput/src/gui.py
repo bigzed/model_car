@@ -5,9 +5,9 @@ from std_msgs.msg import Int16
 
 rospy.init_node("gui")
 
-pub_speed = rospy.Publisher("/localization/desired_speed", Int16, queue_size=1, latch=True)
-pub_look_ahead = rospy.Publisher("/localization/look_ahead", Int16, queue_size=1, latch=True)
-pub_look_ahead_curve = rospy.Publisher("/localization/look_ahead_curve", Int16, queue_size=1, latch=True)
+pub_speed = rospy.Publisher("/localization/desired_speed", Int16, queue_size=1, latch=False)
+pub_look_ahead = rospy.Publisher("/localization/look_ahead", Int16, queue_size=1, latch=False)
+pub_look_ahead_curve = rospy.Publisher("/localization/look_ahead_curve", Int16, queue_size=1, latch=False)
 
 layout = [ [sg.InputText(key='s'), sg.Button('Desired Speed'), sg.Txt('', key='so')],
            [sg.InputText(key='l'), sg.Button('Line Lookahead'), sg.Txt('', key='lo')],
