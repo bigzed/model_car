@@ -171,9 +171,7 @@ class Localization:
         else:
             """STOP"""
             self.pub_speed.publish(Int16(0))
-
-        if self.debug:
-            self.plot()
+            rospy.signal_shutdown("STOP")
 
         return self.lane_id
 
@@ -240,6 +238,8 @@ class Localization:
             np.sin(np.radians(self.steering_angle - 90)) * self.front_vec[0] + np.cos(np.radians(self.steering_angle - 90)) * self.front_vec[1]
             ])
 
+        if self.debug:
+            self.plot()
 
         self.pub_steering.publish(UInt8(self.steering_angle))
 
