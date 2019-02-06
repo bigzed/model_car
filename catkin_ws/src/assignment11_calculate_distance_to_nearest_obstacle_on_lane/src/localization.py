@@ -38,7 +38,7 @@ class TFBroadcaster:
         lidar_vec = np.array([np.cos(yaw), np.sin(yaw)]) * 0.24
         br.sendTransform((msg.pose.pose.position.x + lidar_vec[0], msg.pose.pose.position.y + lidar_vec[1], 0),
                 (q2[0], q2[1], q2[2], q2[3]),
-                msg.header.stamp, 'laser', 'map')
+                msg.header.stamp, 'laser_2', 'map')
 
 class LazerHawk:
     def __init__(self):
@@ -52,6 +52,7 @@ class LazerHawk:
     def lidar_callback(self, msg):
         """Subscribe to LIDAR and publish point_cloud"""
         point_cloud = self.lp.projectLaser(msg)
+        point_cloud.header.frame_id = "laser_2"
         self.point_cloud_pub.publish(point_cloud)
 
 class Localization:
@@ -68,14 +69,18 @@ class Localization:
         self.car_y = None
         self.p = 90
         self.k = -1
-        self.desired_speed = 700
-        self.look_ahead = 50
+        self.obstacle_x = []
+        self.obstacle_y = []
+        self.old_time = None
+        self.desired_speed = 600
         self.switched = False
         self.switched_at = None
         self.switched_mod = 0
+        self.look_ahead_def = 100
         self.look_ahead_mod = 1
-        self.look_ahead_curve = 30
+        self.look_ahead_curve_def = 100
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
+        self.pub_curr_speed = rospy.Publisher("/localization/curr_speed", Float64, queue_size=1, latch=False)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
         self.sub_speed = rospy.Subscriber("/localization/desired_speed", Int16, self.get_desired_speed, queue_size=1)
         self.sub_look_ahead = rospy.Subscriber("/localization/look_ahead", Int16, self.get_look_ahead, queue_size=1)
@@ -99,7 +104,7 @@ class Localization:
         self.desired_speed = msg.data
 
     def get_look_ahead(self, msg):
-        self.look_ahead = msg.data
+        self.look_ahead_def = msg.data
 
     def speed(self):
         if self.switched:
@@ -112,22 +117,20 @@ class Localization:
         return self.desired_speed
 
     def get_look_ahead_curve(self, msg):
-        self.look_ahead_curve = msg.data
+        self.look_ahead_curve_def = msg.data
 
     def lane_is_free(self, obstacles, lane_id):
         for p in obstacles:
             point = np.array(p)
-            if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 10:
-                print(point)
+            if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 16:
+                print("Point: %s" % p)
+                self.obstacle_x.append(p[0])
+                self.obstacle_y.append(p[1])
                 return False
 
         return True
 
     def get_lane(self, point_cloud):
-        """Returns LaneID based on obstacles on the road."""
-        if not self.tf.canTransform('map', point_cloud.header.frame_id, point_cloud.header.stamp):
-            return self.lane_id
-
         """Transform and filter for obstacles in 1.5m distance"""
         obstacles = []
         for p in pc2.read_points(point_cloud):
@@ -136,7 +139,7 @@ class Localization:
                 continue
             ps = PointStamped(point_cloud.header, Point(p[0], p[1], p[2]))
             try:
-                self.tf.waitForTransform('map', 'laser', point_cloud.header.stamp, rospy.Duration(0.05))
+                self.tf.waitForTransform('map', point_cloud.header.frame_id, point_cloud.header.stamp, rospy.Duration(0.05))
                 new_ps = self.tf.transformPoint('map', ps)
             except tf.Exception as e:
                 print('Can not transform points.')
@@ -169,6 +172,9 @@ class Localization:
             """STOP"""
             self.pub_speed.publish(Int16(0))
 
+        if self.debug:
+            self.plot()
+
         return self.lane_id
 
     def calc_angle_rad(self, u_f, u_t):
@@ -181,6 +187,18 @@ class Localization:
             return min(angle, (np.pi / 2))
         else:
             return max(-1 * angle, (np.pi / -2))
+
+    def look_ahead(self):
+        return self.look_ahead_def
+
+
+    def look_ahead_curve(self):
+        return self.look_ahead_curve_def
+
+    def calc_curr_speed(self, old_x, old_y, time):
+        if not self.old_time:
+            return 0
+        self.pub_curr_speed.publish(Float64((abs(np.linalg.norm(np.array([old_x, old_y]) - np.array([self.car_x, self.car_y]))) / 100.0) / (time - self.old_time).to_sec()))
 
     def localization_callback(self, msg):
         """Odometry coordinates are in M ours are in CM and switched because of the image plotting"""
@@ -195,13 +213,16 @@ class Localization:
         yaw = tf.transformations.euler_from_quaternion(quaternion)[2]
         """The QR-Code is approx 35cm from the front axle"""
         self.front_vec = np.array([np.sin(yaw), np.cos(yaw)]) * 35
+        old_x, old_y = self.car_x, self.car_y
         self.car_x, self.car_y = self.front_vec + np.array([car_x, car_y])
+        self.calc_curr_speed(old_x, old_y, msg.header.stamp)
+        self.old_time = msg.header.stamp
 
         """Get lookahead based on car position"""
         if self.car_y <= (200) or self.car_y >= (404):
-            look_ahead = self.look_ahead_curve / self.look_ahead_mod
+            look_ahead = self.look_ahead_curve() / self.look_ahead_mod
         else:
-            look_ahead = self.look_ahead / self.look_ahead_mod
+            look_ahead = self.look_ahead() / self.look_ahead_mod
         """Get next point on trajectory used to determine steering error"""
         self.distpoint = self.closest_point([self.car_x, self.car_y], self.lane_id, look_ahead)[-1]
         self.target_vec = self.distpoint - np.array([self.car_x, self.car_y])
@@ -219,10 +240,6 @@ class Localization:
             np.sin(np.radians(self.steering_angle - 90)) * self.front_vec[0] + np.cos(np.radians(self.steering_angle - 90)) * self.front_vec[1]
             ])
 
-        print("Angle: %s -> Steering Angle: %s" % (np.degrees(self.angle_rad), self.steering_angle))
-
-        if self.debug:
-            self.plot()
 
         self.pub_steering.publish(UInt8(self.steering_angle))
 
@@ -284,7 +301,7 @@ class Localization:
                 dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]),
                         np.array([215, 200]), 121 + laned, distance)
                 if distance > 0:
-                    dp[0],dp[1] = 94 - laned, 197
+                    dp[0],dp[1] = 94 - laned, 201
             # Bottom half circle:
             elif y >= 404:
                 dp,distance,ncp = self.closest_point_on_circle(np.array([x, y]), np.array([215, 404]),
@@ -322,6 +339,8 @@ class Localization:
         plt.plot(self.car_x, self.car_y, 'gx')
         plt.plot(self.obstacles_x, self.obstacles_y, 'y.')
         plt.plot(self.distpoint[0], self.distpoint[1], 'bx', label='angle to car %5.3f -> steering angle %5.3f' % (np.degrees(self.angle_rad), self.steering_angle))
+        if self.obstacle_x:
+            plt.plot(self.obstacle_x, self.obstacle_y, 'rx')
         plt.axes().arrow(self.car_x, self.car_y, self.front_vec[0], self.front_vec[1], head_width=4, head_length=6, color='w')
         plt.axes().arrow(self.car_x, self.car_y, self.target_vec[0], self.target_vec[1], head_width=4, head_length=6, color='r')
         plt.axes().arrow(self.car_x, self.car_y, self.steering_vec[0], self.steering_vec[1], head_width=4, head_length=6, color='b')
