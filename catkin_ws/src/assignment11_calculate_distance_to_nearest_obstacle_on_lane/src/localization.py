@@ -124,15 +124,14 @@ class Localization:
         for p in obstacles:
             point = np.array(p)
             if abs(np.linalg.norm(point - self.closest_point(point, lane_id, 0))) < 16:
-                print("Point: %s" % p)
                 self.obstacle_x.append(p[0])
                 self.obstacle_y.append(p[1])
-                self.lanefree[lane_id] = 3
+                self.lanefree[lane_id] = 5
                 return False
 
         if self.lanefree[lane_id] > 0:
-                self.lanefree[lane_id] -= 1
-                return False
+            self.lanefree[lane_id] -= 1
+            return False
 
         return True
 
@@ -145,7 +144,7 @@ class Localization:
                 continue
             ps = PointStamped(point_cloud.header, Point(p[0], p[1], p[2]))
             try:
-                self.tf.waitForTransform('map', point_cloud.header.frame_id, point_cloud.header.stamp, rospy.Duration(0.05))
+                self.tf.waitForTransform('map', point_cloud.header.frame_id, point_cloud.header.stamp, rospy.Duration(0.15))
                 new_ps = self.tf.transformPoint('map', ps)
             except tf.Exception as e:
                 print('Can not transform points.')
@@ -177,7 +176,7 @@ class Localization:
         else:
             """STOP"""
             self.pub_speed.publish(Int16(0))
-            rospy.signal_shutdown("STOP")
+            #rospy.signal_shutdown("STOP")
 
         return self.lane_id
 
