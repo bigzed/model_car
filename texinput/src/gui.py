@@ -18,15 +18,16 @@ window = sg.Window('model car GUI').Layout(layout)
 
 while (True):
     event, values = window.Read()
+    #print(event, values)
     if event is 'Desired Speed' and str.isdigit(values['s']):
         window.FindElement('so').Update(values['s'])
-        pub_speed.publish(Int16(values['s']))
+        pub_speed.publish(Int16(int(values['s'])))
     if event is 'Line Lookahead' and str.isdigit(values['l']):
         window.FindElement('lo').Update(values['l'])
-        pub_look_ahead_curve.publish(Int16(values['l']))
+        pub_look_ahead_curve.publish(Int16(int(values['l'])))
     if event is 'Curve lookahead' and str.isdigit(values['c']):
         window.FindElement('co').Update(values['c'])
-        pub_look_ahead.publish(Int16(values['c']))
+        pub_look_ahead.publish(Int16(int(values['c'])))
     if event == 'Cancel':
         break
 
