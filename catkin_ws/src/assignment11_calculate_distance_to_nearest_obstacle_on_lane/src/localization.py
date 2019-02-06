@@ -79,6 +79,7 @@ class Localization:
         self.look_ahead_def = 100
         self.look_ahead_mod = 1
         self.look_ahead_curve_def = 100
+        self.lanefree = [0]*2
         self.pub_steering = rospy.Publisher("/steering", UInt8, queue_size=100, latch=True)
         self.pub_curr_speed = rospy.Publisher("/localization/curr_speed", Float64, queue_size=1, latch=False)
         self.pub_speed = rospy.Publisher("/manual_control/speed", Int16, queue_size=100, latch=True)
@@ -126,6 +127,11 @@ class Localization:
                 print("Point: %s" % p)
                 self.obstacle_x.append(p[0])
                 self.obstacle_y.append(p[1])
+                self.lanefree[lane_id] = 3
+                return False
+
+        if self.lanefree[lane_id] > 0:
+                self.lanefree[lane_id] -= 1
                 return False
 
         return True
