@@ -4,8 +4,8 @@
 \usepackage[utf8]{inputenc}
 % \usepackage{amsfonts,amssymb,amsmath,cancel,graphicx,textcomp}
 \usepackage{amsfonts,amssymb,amsmath,graphicx,textcomp}
-\usepackage{float}
-\usepackage{color,xcolor}
+% \usepackage{float}
+\usepackage{color}
 \usepackage{url}
 \usepackage{hyperref}
 \usepackage{listings}
@@ -38,8 +38,8 @@
   breaklines=true, breakindent=0pt, postbreak=\mbox{$\rightarrow\ \ $},
   showstringspaces=false,
   extendedchars=false,
-  commentstyle=\color{black!40},
   basicstyle=\small\ttfamily,
+  commentstyle=\color{black!40},
   stringstyle=\color{black!40!blue},
   keywordstyle=\color{black!40!green}
 }
@@ -50,26 +50,91 @@
 \setlength{\parskip}{0.5em}
 
 \begin{document}
-  \section{Time and Precision (10 Points)}
-    Aufgabe 1: \\
-    Das Auto fährt so schnell wie möglich zwei Runden, gestartet von einer geraden Linie. Zu allen Zeiten muss sich mindestens ein Rad zwischen der inneren und äußeren Linie befinden.
-    
+\section{Time and Precision (10 Punkte)}
     \begin{itemize}
-	\item Quellcode:  \\ \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization.py}
-	\item Video ohne Objekte: \\ \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/u12_1.MP4}
-	\item Zeit für zwei Runden: 7s 
-	\item Für diese Aufgabe benutzen wir unsere Klasse \mintinline{python}{ class Localization: } Die wichtigsten Module werden hier hier aufgeführt:
-	\end{itemize}
-    
-    Aufgabe 2: \\
-    Das Auto fährt eine Runde, gestartet von einer geraden Linie. Auf der Fahrbahn befinden sich zwei Objekte, eines auf der Hälfte der Strecke und das andere am Ende der Strecke auf beiden Spuren. Das Auto soll dem ersten Objekt ausweichen und beim letzten Objekt zu Halt kommen.
+      \item Quellcode:
+        \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization_assignment12.py}
+      \item ohne Hindernisse:
+        \begin{itemize}
+          \item Zeit: unter $ 7s $
+          \item Video:
+          \url{https://raw.githubusercontent.com/bigzed/model_car/version-4.0/texinput/videos/u12_1.mp4}
+        \end{itemize}
+      \item mit Hindernisse:
+        \begin{itemize}
+          \item Zeit: ca. $ 11s $
+          \item Video:
+            \url{https://raw.githubusercontent.com/bigzed/model_car/version-4.0/texinput/videos/u12_2.mp4}
+        \end{itemize}
+    \end{itemize}
 
-    \begin{itemize}
-	\item Quellcode:  \\ \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization.py}
-	\item Video ohne Objekte: \\
-	\url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/u12_1.MP4}
-	\item Zeit für eine Runde: 11s
-	\end{itemize}
-    
+    \subsection{Herangehensweise}
+      Wir haben zwar volle Punktzahl auf dem 11. Zettel bekommen, allerdings weist unser Programm
+      nat\"urlich noch Fehler auf. Daher haben wir uns f\"ur diesen Zettel entschieden keine
+      weiteren Sensoren zu benutzen, sondern weiter auf das \emph{fake GPS} f\"ur die Steuerung und
+      den LIDAR f\"ur die Hinderniserkennung zu verlassen.
 
+      \subsubsection{Steuerung}
+        W\"ahrend des 11. Zettels sind uns folgende Probleme zur Steuerung aufgefallen:
+        \begin{itemize}
+          \item sehr sp\"ate Entscheidungen bzw.\ manchmal auch keine. Wir vermuteten Packetverluste
+          \item zu schwacher Lenkwinkel
+          \item falsche Entscheidungen in der oberen linken Kurve
+          \item keine M\"oglichkeit w\"ahrend des Fahrens Geschwindigkeit und Look-Ahead zu
+            konfigurieren
+        \end{itemize}
+        Um diese Probleme zu lösen haben wir uns folgendes überlegt:
+        \begin{itemize}
+            \item Als erstes haben wir den Kreismittelpunkt des oberen Kreises von $(215|196)$ auf $(215|200)$
+            verschoben, da anscheinend die reale Welt nicht genau mit der Karte \"ubereinstimmt.
+            \item Als n\"achstes haben wir die Lenk-Entscheidungen im oberen Kreissektor \"uberpr\"uft und uns ist aufgefallen, dass unsere Berechnung des Winkels zwischen Auto-Vektor und Ziel-Vektor nicht
+            in jedem Sektor korrekt sind. Manchmal erhielten wir nicht den kleineren, sondern den
+            gr\"oseren Winkel zwischen den beiden Vektoren.
+            \item Als n\"achstes haben wir den Ausschlag des Lenkwinkels erh\"oht, sodass dieser seinen
+            maximalen Wert schon bei einem Winkel von Ziel zu Auto von $90^\circ$ erreicht.
+            \item Nach der Korrektur dieser Punkte konnten wir 400 Umdrehungen als Geschwindigkeit
+            f\"ur den Motor einstellen und sicher fahren
+            \item Nun haben wir die Hinderniserkennung von der Steuerung entkoppelt und sie beide in eigene
+            Callbacks aufgeteilt, somit stehen die Lenkentscheidungen schneller zur Verf\"ugung.
+            \item Zusammen mit einer GUI die wir erstellt haben um die Parameter \emph{desired\_speed},
+            \emph{look\_ahead\_curve} und \emph{look\_ahead\_straight} w\"ahrend des Fahrens zu
+            Ver\"andern konnten wir die optimale Konfiguration ermittlen.
+            \item Bei einer Geschwindigkeit von $1000$ Umdrehungen, brauchen wir einen \emph{look\_ahead} von
+            $120cm$ um das Resultat aus Video 1 zu erreichen. Bei der Kalibrierung ist uns aufgefallen,
+            das der \emph{look\_ahead} der selbe f\"ur Kurven und Geraden seien sollte.
+        \end{itemize}
+        
+      \subsubsection{Hinderniserkennung}
+        W\"ahrend des 11. Zettels sind uns folgende Probleme zur Hinderniserkennung aufgefallen:
+        \begin{itemize}
+          \item LIDAR Position zu QR-Code Position zu Vorderachse nicht kalibriert
+          \item trotz Erkennung kam es zu Kollisionen, da das Ausweichman\"over oder die Bremsung zu sp\"at bzw. zu schwach ausgef\"uhrt wurde
+        \end{itemize}
+        Um diese Probleme zu lösen haben wir uns folgendes überlegt:
+        \begin{itemize}
+            \item Als erstes haben wir die Position zueinander kalibriert und die Callbacks wie im letzten
+            Abschnitt beschrieben entkoppelt. Das hat die Genauigkeit erh\"oht, allerdings sind die
+            Entscheidungen teilweise immer noch zu sp\"at.
+            \item Deswegen haben wir uns entschieden, sobald wir ein Hindernis erkennen und ein Ausweichman\"over einleiten, die Geschwindigkeit zu verringern und die Lenkung um den Faktor 2 zu
+            verst\"arken. Das hat dazu gef\"uhrt das trotz sp\"ater Erkennung eine Kollision verhindert
+            werden kann. Es bek\"ampft allerdings nur das Symptom nicht den Grund.
+            Wir haben dies in der \mintinline{python}{ def get_lane(self, car_x, car_y): } bei der Abfrage 
+            \mintinline{python}{if self.lane_is_free(obstacles, self.lane_id):} eingebaut.
+            \item Der Grund f\"ur die sp\"ate Entscheidungen sind die Timestamps der \emph{fake GPS}
+            Datenpakete. Um die LIDAR-Daten in das \emph{fake GPS} Koordinatensystem umzurechnen,
+            brauchen wir eine GPS Information zu fast der selben Zeit, allerdings laufen auf den Autos
+            und dem \emph{fake GPS} anscheinend keine \emph{NTP} Clienten. Die Fluktuation der
+            Timestamps zum Empfangen auf dem Auto geht von $- 3s \text{ bis } + 3s$.
+            \item Dieses Problem ist allein auf dem Auto nicht l\"osbar, allerdings k\"onnen wir die
+            Auswirkungen verringern.
+            \item Als erstes ersetzen wir den Timestamp des Pakets mit dem Zeitpunkt des Empfangens und
+            eliminieren die Fluktuation, nehmen dabei aber in Kauf das LIDAR und GPS falsch ineinander
+            \"uberf\"uhrt werden.
+            \item Als n\"achstes warten wir f\"ur jedes LIDAR-Paket bis zu $150ms$ ob ein passendes GPS-Paket
+            empfangen wird, falls nicht brechen wir ab und schreiben eine Nachricht auf die Konsole.
+            \item Wir konnten so zwar die Pakete synchronisieren, allerdings warten wir schon bis zu $150ms$
+            bis wir mit der Berechnung anfangen, somit sind die Ausweichman\"over meist noch zu sp\"at.
+            \item Die n\"achsten Kurs-Teilnehmer w\"urden sich bestimmt freuen wenn die Zeit auf Autos und
+            \emph{fake GPS} durch einen NTP-Server synchronisiert wird.
+        \end{itemize}
 \end{document}
