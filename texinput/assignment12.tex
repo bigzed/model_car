@@ -55,14 +55,87 @@
         \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization_assignment12.py}
       \item ohne Hindernisse:
         \begin{itemize}
-          \item Zeit: ca $ 7s $
-          \item Video: \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/u12_1.MP4}
+          \item Zeit: unter $ 7s $
+          \item Video:
+          \url{https://raw.githubusercontent.com/bigzed/model_car/version-4.0/texinput/videos/u12_1.mp4}
         \end{itemize}
       \item mit Hindernisse:
         \begin{itemize}
           \item Zeit: ca. $ 11s $
-          \item Video: \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/u12_2.MP4}
+          \item Video:
+            \url{https://raw.githubusercontent.com/bigzed/model_car/version-4.0/texinput/videos/u12_2.mp4}
         \end{itemize}
     \end{itemize}
+
+    \subsection{Herangehensweise}
+      Wir haben zwar volle Punktzahl auf dem 11. Zettel bekommen, allerdings weist unser Programm
+      nat\"urlich noch Fehler auf. Daher haben wir uns f\"ur diesen Zettel entschieden keine
+      weiteren Sensoren zu benutzten, sondern weiter auf das \emph{fake GPS} f\"ur die Steuerung und
+      den LIDAR f\"ur die Hindernis Erkennung zu verlassen.
+
+      \subsubsection{Steuerung}
+        W\"ahrend des 11. Zettels sind uns folgende Probleme aufgefallen:
+        \begin{itemize}
+          \item sehr sp\"ate Entscheidungen bzw.\ manchmal auch keine. Wir vermuteten Packetverluste
+          \item zu schwacher Lenkwinkel
+          \item falsche Entscheidungen in der oberen Linken kurve
+          \item keine m\"oglichkeit w\"ahrend des Fahrens Geschwindigkeit und Look-Ahead zu
+            konfigurieren
+        \end{itemize}
+        Als erstes haben wir den Kreismittelpunkt des oberen Kreises von $(215|196)$ auf $(215|200)$
+        verschoben, da anscheinend die reale Welt nicht genau mit der Karte \"ubereinstimmt.\\
+        Als n\"achstes haben wir die Lenk-Entscheidungen im oberen Kreissektor \"uberpr\"uft und uns ist
+        aufgefallen, dass unsere Berechnung des Winkels zwischen Auto-Vektor und Ziel-Vektor nicht
+        in jedem Sektor korrekt sind. Manchmal erhielten wir nicht den kleineren, sondern den
+        gr\"oseren Winkel zwischen den beiden Vektoren.\\
+        Als n\"achstes haben wir den Ausschlag des Lenkwinkels erh\"oht, sodass dieser seinen
+        maximalen Wert schon bei einem Winkel von Ziel zu Auto von $90^\circ$ erreicht.
+
+        Nach der Korrektur dieser Punkte konnten wir 400 Umdrehungen als Geschwindigkeit
+        f\"ur den Motor einstellen und sicher fahren.
+
+        Nun haben wir die Hindernis Erkennung von der Steuerung entkoppelt und sie beide in eigene
+        Callbacks aufgeteilt, somit stehen die Lenk-Entscheidungen schneller zur Verf\"ugung.
+        Zusammen mit einer GUI die wir erstellt haben um die Parameter \emph{desired\_speed},
+        \emph{look\_ahead\_curve} und \emph{look\_ahead\_straight} w\"ahrend des Fahrens zu
+        Ver\"andern konnten wir die optimale Konfiguration ermittlen.\\
+        Bei einer Geschwindigkeit von $1000$ Umdrehungen, brauchen wir einen \emph{look\_ahead} von
+        $120cm$ um das Resultat aus Video 1 zu erreichen. Bei der Kalibrierung ist uns aufgefallen,
+        das der \emph{look\_ahead} der selbe f\"ur Kurven und Geraden seien sollte.
+
+      \subsubsection{Hindernis Erkennung}
+        W\"ahrend des 11. Zettels sind uns folgende Probleme aufgefallen:
+        \begin{itemize}
+          \item LIDAR Position zu QR-Code Position zu Vorderachse nicht kalibriert
+          \item trotz Erkennung kam es zu Kollisionen, da das Ausweichman\"over zu sp\"at bzw. zu
+            schwach ausgef\"uhrt wurde
+        \end{itemize}
+        Als erstes haben wir die Position zu einander kalibriert und die Callbacks wie im letzten
+        Abschnitt beschrieben entkoppelt. Das hat die Genauigkeit erh\"oht, allerdings sind die
+        Entscheidungen teilweise immer noch zu sp\"at.
+
+        Deswegen haben wir uns entschieden, sobald wir ein Hindernis erkennen und ein Ausweichman\"over
+        einleiten, die Geschwindigkeit zur verringern und die Lenkung um den Faktor 2 zu
+        verst\"arken. Das hat dazu gef\"uhrt das trotz sp\"ater Erkennung eine Kollision verhindert
+        werden kann. Es bek\"ampft allerdings nur das Symptom nicht den Grund.
+
+        Der Grund f\"ur die sp\"ate Entscheidungen sind die Timestamps der \emph{fake GPS}
+        Datenpakete. Um die LIDAR-Daten in das \emph{fake GPS} Koordinatensystem umzurechnen,
+        brauchen wir eine GPS Information zu fast der selben Zeit, allerdings laufen auf den Autos
+        und dem \emph{fake GPS} anscheinend keine \emph{NTP} Clienten. Die Fluktuation der
+        Timestamps zum Empfangen auf dem Auto geht von $- 3s \text{ bis } + 3s$.
+
+        Dieses Problem ist allein auf dem Auto nicht l\"osbar, allerdings k\"onnen wir die
+        Auswirkungen verringern.\\
+        Als erstes ersetzen wir den Timestamp des Pakets mit dem Zeitpunkt des Empfangens und
+        eliminieren die Fluktuation, nehmen dabei aber in Kauf das LIDAR und GPS falsch ineinander
+        \"uberf\"uhrt werden.\\
+        Als n\"achstes warten wir f\"ur jedes LIDAR-Paket bis zu $150ms$ ob ein passendes GPS-Paket
+        empfangen wird, falls nicht brechen wir ab und schreiben eine Nachricht auf die Konsole.\\
+        Wir konnten so zwar die Pakete synchronisieren, allerdings warten wir schon bis zu $150ms$
+        bis wir mit der Berechnung anfangen, somit sind die Ausweichman\"over meist noch zu sp\"at.\\
+        Die n\"achsten Kurs-Teilnehmer w\"urden sich bestimmt freuen wenn die Zeit auf Autos und
+        \emph{fake GPS} durch einen NTP-Server synchronisiert wird.
+
 
 \end{document}
