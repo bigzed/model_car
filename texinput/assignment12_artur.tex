@@ -1,0 +1,75 @@
+\documentclass[10pt,oneside,a4paper]{article}
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=1cm,includeheadfoot]{geometry}
+\usepackage{ngerman}
+\usepackage[utf8]{inputenc}
+% \usepackage{amsfonts,amssymb,amsmath,cancel,graphicx,textcomp}
+\usepackage{amsfonts,amssymb,amsmath,graphicx,textcomp}
+\usepackage{float}
+\usepackage{color,xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{fancyhdr}
+\usepackage{gensymb}
+\usepackage[section]{placeins}
+\usepackage{minted}
+\usetikzlibrary{arrows,shapes,snakes,automata,backgrounds,petri,positioning}
+
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{crash override : \\Steve Dierker, Semjon Kerner, Artur Jeske}
+\fancyhead[C]{"Ubungsblatt 12}
+\fancyhead[R]{Seite \thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+
+% lstlisting mit Zeilennummerierung und grauen Kommentaren, Zeilenumbruch, etc. pp.
+\lstset{
+  numbers=left, numberstyle=\tiny, numbersep=5pt,
+  tabsize=2,
+  breaklines=true, breakindent=0pt, postbreak=\mbox{$\rightarrow\ \ $},
+  showstringspaces=false,
+  extendedchars=false,
+  commentstyle=\color{black!40},
+  basicstyle=\small\ttfamily,
+  stringstyle=\color{black!40!blue},
+  keywordstyle=\color{black!40!green}
+}
+
+% Komma Abstände bei Tausendern/Dezimalzahlen ans dt. anpassen
+\mathcode`,="013B
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+
+\begin{document}
+  \section{Time and Precision (10 Points)}
+    Aufgabe 1: \\
+    Das Auto fährt so schnell wie möglich zwei Runden, gestartet von einer geraden Linie. Zu allen Zeiten muss sich mindestens ein Rad zwischen der inneren und äußeren Linie befinden.
+    
+    \begin{itemize}
+	\item Quellcode:  \\ \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization.py}
+	\item Video ohne Objekte: \\ \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/u12_1.MP4}
+	\item Zeit für zwei Runden: 7s 
+	\item Für diese Aufgabe benutzen wir unsere Klasse \mintinline{python}{ class Localization: } Die wichtigsten Module werden hier hier aufgeführt:
+	\end{itemize}
+    
+    Aufgabe 2: \\
+    Das Auto fährt eine Runde, gestartet von einer geraden Linie. Auf der Fahrbahn befinden sich zwei Objekte, eines auf der Hälfte der Strecke und das andere am Ende der Strecke auf beiden Spuren. Das Auto soll dem ersten Objekt ausweichen und beim letzten Objekt zu Halt kommen.
+
+    \begin{itemize}
+	\item Quellcode:  \\ \url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/src/localization.py}
+	\item Video ohne Objekte: \\
+	\url{https://github.com/bigzed/model_car/blob/version-4.0/texinput/videos/u12_1.MP4}
+	\item Zeit für eine Runde: 11s
+	\end{itemize}
+    
+
+\end{document}
